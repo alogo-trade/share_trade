@@ -87,7 +87,8 @@ def add_scores(records, horizon, as_of=None, max_data_age_days=7):
         age_days = (as_of - last_date).days if last_date else None
         row['data_age_days'] = age_days
         observations = int(row.get('data_points') or 0)
-        if last_date is None or age_days < 0 or age_days > max_data_age_days:
+        if (str(row.get('cache_status') or '').upper() == 'STALE_CACHE'
+                or last_date is None or age_days < 0 or age_days > max_data_age_days):
             row.update(data_quality_status='STALE_OR_UNKNOWN', signal='STALE_DATA', ranking_score=None)
         elif observations < min_observations:
             row.update(data_quality_status='INSUFFICIENT_HISTORY', signal='LOW_CONFIDENCE', ranking_score=None)
