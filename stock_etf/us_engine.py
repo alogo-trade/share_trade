@@ -12,14 +12,23 @@ logger = logging.getLogger("stock_etf.us")
 
 
 def _normalise_yield_pct(value: Any) -> float | None:
-    """Yahoo may expose dividend yield as a ratio or as a percentage."""
+    """
+    Convert Yahoo Finance's dividendYield ratio to percentage points.
+
+    yfinance exposes dividendYield as a fractional ratio (for example,
+    0.006 means 0.6%). Do not use a magnitude heuristic here: a raw value
+    greater than 1 is still a ratio, not evidence that it is already a
+    percentage. This function is only for the Yahoo dividendYield field.
+    """
+    if isinstance(value, bool) or value is None:
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if not np.isfinite(number):
+    if not np.isfinite(number) or number < 0:
         return None
-    return round(number * 100 if abs(number) <= 1 else number, 2)
+    return round(number * 100, 2)
 
 
 def _read_rows(path: str) -> list[dict[str, Any]]:
