@@ -83,11 +83,11 @@ class Settings:
     )
 
     yahoo_request_timeout_seconds: int = int(
-        os.getenv("YAHOO_REQUEST_TIMEOUT_SECONDS", "15")
+        os.getenv("YAHOO_REQUEST_TIMEOUT_SECONDS", "10")
     )
 
     yahoo_liquidity_batch_size: int = int(
-        os.getenv("YAHOO_LIQUIDITY_BATCH_SIZE", "50")
+        os.getenv("YAHOO_LIQUIDITY_BATCH_SIZE", "100")
     )
 
     yahoo_cooldown_seconds: int = int(

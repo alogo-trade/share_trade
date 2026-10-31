@@ -106,11 +106,17 @@ def run(
         universe
     )
 
+    logger.info("NSE universe stage completed: discovered=%d instruments.", discovered)
+
     if (
         settings.analysis_universe_limit > 0
         and len(universe)
         > settings.analysis_universe_limit
     ):
+        logger.info(
+            "Starting liquidity screen: discovered=%d, analysis_limit=%d.",
+            len(universe), settings.analysis_universe_limit
+        )
         universe = liquidity_screen(
             universe,
             settings.analysis_universe_limit,
@@ -118,6 +124,7 @@ def run(
         batch_size=settings.yahoo_liquidity_batch_size,
         request_timeout_seconds=settings.yahoo_request_timeout_seconds,
         )
+        logger.info("Liquidity screen returned %d instruments.", len(universe))
 
     logger.info(
         "Universe: %d instruments (%d stocks, %d ETFs).",
@@ -136,6 +143,7 @@ def run(
     # Market data
     # ------------------------------------------------------------------
 
+    logger.info("Starting market-data collection for %d instruments.", len(universe))
     records = build_market_data(
         universe,
         settings.history_period,
@@ -144,6 +152,8 @@ def run(
         history_batch_size=settings.yahoo_history_batch_size,
         request_timeout_seconds=settings.yahoo_request_timeout_seconds,
     )
+
+    logger.info("Market-data collection returned %d records. Starting quantitative scoring.", len(records))
 
     # ------------------------------------------------------------------
     # Quantitative scoring

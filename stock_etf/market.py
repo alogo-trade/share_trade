@@ -270,28 +270,144 @@ def market_data_quality_summary(records):
         'cache_age_is_not_market_data_age': True,
         'note': 'Market-data freshness is determined by last_date and the decision gate. Cache age measures local cache refresh age only.'
     }
-def liquidity_screen(universe,max_instruments=250,workers=3,batch_size=50,request_timeout_seconds=15):
-    if len(universe)<=max_instruments:return universe
-    symbols=[yf_symbol(x) for x in universe]; scores={}
-    try:
-        for start in range(0,len(symbols),batch_size):
-            batch=symbols[start:start+batch_size]
-            if CB.open: break
-            try:data=yf.download(batch,period='1mo',interval='1d',auto_adjust=True,progress=False,threads=False,group_by='ticker',timeout=request_timeout_seconds)
-            except Exception as exc:
-                if 'Too Many Requests' in str(exc) or '429' in str(exc):CB.trip(exc)
-                continue
-            if data is None or data.empty:continue
-            for row in universe[start:start+200]:
-                ys=yf_symbol(row)
+def liquidity_screen(
+    universe,
+    max_instruments=250,
+    workers=3,
+    batch_size=100,
+    request_timeout_seconds=10,
+):
+    """Select liquid instruments while logging progress and isolating bad symbols."""
+    started = time.monotonic()
+    total = len(universe)
+    if total <= max_instruments:
+        logger.info(
+            "Liquidity screen skipped: %d instruments are within the limit %d.",
+            total, max_instruments
+        )
+        return universe
+
+    symbols = [yf_symbol(row) for row in universe]
+    scores = {}
+    total_batches = (len(symbols) + batch_size - 1) // batch_size
+    logger.info(
+        "Liquidity screen started: instruments=%d, target=%d, batch_size=%d, "
+        "request_timeout=%ss, batches=%d.",
+        total, max_instruments, batch_size, request_timeout_seconds, total_batches
+    )
+
+    def score_group(group):
+        """Return {Yahoo symbol: average traded value}; split failed groups."""
+        try:
+            data = yf.download(
+                group,
+                period="1mo",
+                interval="1d",
+                auto_adjust=True,
+                progress=False,
+                threads=False,
+                group_by="ticker",
+                timeout=request_timeout_seconds,
+            )
+            if data is None or data.empty:
+                raise RuntimeError("empty Yahoo liquidity response")
+
+            group_scores = {}
+            for yahoo_symbol in group:
                 try:
-                    d=data if len(batch)==1 else data[ys]; c=pd.to_numeric(d.get('Close'),errors='coerce').dropna(); v=pd.to_numeric(d.get('Volume'),errors='coerce').dropna()
-                    if not c.empty and not v.empty:scores[row['symbol']]=_safe_float(c.iloc[-1])*_safe_float(v.tail(20).mean())
-                except Exception:continue
-        stocks=sorted([x for x in universe if str(x.get('type','STOCK')).upper()=='STOCK'],key=lambda x:scores.get(x['symbol'],0),reverse=True); etfs=sorted([x for x in universe if str(x.get('type','STOCK')).upper()=='ETF'],key=lambda x:scores.get(x['symbol'],0),reverse=True)
-        stock_limit=max(1,int(max_instruments*0.8)); etf_limit=max(1,max_instruments-stock_limit); chosen=stocks[:stock_limit]+etfs[:etf_limit]
-        logger.info('Liquidity screen: selected %d stocks and %d ETFs from %d instruments.',sum(x.get('type')=='STOCK' for x in chosen),sum(x.get('type')=='ETF' for x in chosen),len(universe)); return chosen
-    except Exception as exc: logger.warning('Liquidity screen failed, using fallback: %s',exc); return universe[:max_instruments]
+                    frame = data if len(group) == 1 else data[yahoo_symbol]
+                    close = pd.to_numeric(frame.get("Close"), errors="coerce").dropna()
+                    volume = pd.to_numeric(frame.get("Volume"), errors="coerce").dropna()
+                    if not close.empty and not volume.empty:
+                        traded_value = _safe_float(close.iloc[-1]) * _safe_float(volume.tail(20).mean())
+                        if traded_value is not None:
+                            group_scores[yahoo_symbol] = traded_value
+                except Exception as exc:
+                    logger.debug("Liquidity data unavailable for %s: %s", yahoo_symbol, exc)
+
+            missing_symbols = [symbol for symbol in group if symbol not in group_scores]
+            if missing_symbols and len(group) > 1 and not CB.open:
+                logger.warning(
+                    "Liquidity response incomplete: %d/%d symbols missing; retrying missing symbols in smaller groups.",
+                    len(missing_symbols), len(group)
+                )
+                group_scores.update(score_group(missing_symbols))
+            return group_scores
+
+        except Exception as exc:
+            message = str(exc)
+            if "Too Many Requests" in message or "RateLimit" in message or "429" in message:
+                CB.trip(message)
+                return {}
+            if len(group) == 1:
+                logger.warning("Liquidity data unavailable for %s: %s", group[0], message)
+                return {}
+            midpoint = len(group) // 2
+            logger.warning(
+                "Liquidity batch failed for %d symbols; splitting into %d and %d: %s",
+                len(group), midpoint, len(group) - midpoint, message
+            )
+            left = score_group(group[:midpoint])
+            if CB.open:
+                return left
+            left.update(score_group(group[midpoint:]))
+            return left
+
+    for batch_index, offset in enumerate(range(0, len(symbols), batch_size), start=1):
+        batch = symbols[offset:offset + batch_size]
+        if CB.open:
+            logger.warning(
+                "Liquidity screen stopped at batch %d/%d because Yahoo circuit breaker is open.",
+                batch_index, total_batches
+            )
+            break
+
+        batch_started = time.monotonic()
+        logger.info(
+            "Liquidity batch %d/%d started: symbols %d-%d (%d instruments).",
+            batch_index, total_batches, offset + 1, offset + len(batch), len(batch)
+        )
+        batch_scores = score_group(batch)
+        scores.update(batch_scores)
+        logger.info(
+            "Liquidity batch %d/%d finished in %.1fs: scored=%d/%d, cumulative=%d/%d.",
+            batch_index, total_batches, time.monotonic() - batch_started,
+            len(batch_scores), len(batch), len(scores), total
+        )
+
+    coverage = 100.0 * len(scores) / max(total, 1)
+    logger.info(
+        "Liquidity data collection finished in %.1fs: scored=%d/%d (%.1f%%).",
+        time.monotonic() - started, len(scores), total, coverage
+    )
+
+    if len(scores) < max_instruments:
+        logger.warning(
+            "Liquidity coverage is below the requested shortlist size: scored=%d, target=%d. "
+            "Unscored instruments will receive zero liquidity score.",
+            len(scores), max_instruments
+        )
+
+    stocks = sorted(
+        [row for row in universe if str(row.get("type", "STOCK")).upper() == "STOCK"],
+        key=lambda row: scores.get(yf_symbol(row), 0),
+        reverse=True,
+    )
+    etfs = sorted(
+        [row for row in universe if str(row.get("type", "STOCK")).upper() == "ETF"],
+        key=lambda row: scores.get(yf_symbol(row), 0),
+        reverse=True,
+    )
+    stock_limit = max(1, int(max_instruments * 0.8))
+    etf_limit = max(1, max_instruments - stock_limit)
+    chosen = stocks[:stock_limit] + etfs[:etf_limit]
+    logger.info(
+        "Liquidity screen completed in %.1fs: selected=%d (%d stocks, %d ETFs).",
+        time.monotonic() - started, len(chosen),
+        sum(row.get("type") == "STOCK" for row in chosen),
+        sum(row.get("type") == "ETF" for row in chosen),
+    )
+    return chosen
 
 def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache',history_cache_ttl_hours=12,fundamentals_cache_ttl_hours=168):
     symbols=[yf_symbol(x) for x in universe]; histories=_history_batch(symbols,history_period,batch_size=80,cache_dir=str(Path(cache_dir)/'market'),cache_ttl_hours=history_cache_ttl_hours)

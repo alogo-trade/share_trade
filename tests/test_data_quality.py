@@ -108,3 +108,37 @@ def test_history_download_uses_bounded_request_timeout(tmp_path, monkeypatch):
     assert result == {}
     assert len(calls) == 1
     assert calls[0]["timeout"] == 15
+
+
+def test_liquidity_screen_processes_exact_batch_slice_and_logs_coverage(monkeypatch, caplog):
+    import logging
+    import pandas as pd
+    import stock_etf.market as market
+
+    universe = [
+        {"symbol": f"SYM{i}", "type": "STOCK", "exchange": "NSE"}
+        for i in range(4)
+    ]
+    calls = []
+
+    def fake_download(symbols, **kwargs):
+        calls.append(list(symbols))
+        columns = pd.MultiIndex.from_product([symbols, ["Close", "Volume"]])
+        values = [[10.0, 1000.0] for _ in range(len(columns))]
+        return pd.DataFrame([values[0]], columns=columns)
+
+    class ClosedCircuitBreaker:
+        open = False
+
+    monkeypatch.setattr(market, "CB", ClosedCircuitBreaker())
+    monkeypatch.setattr(market.yf, "download", fake_download)
+
+    with caplog.at_level(logging.INFO, logger="stock_etf"):
+        result = market.liquidity_screen(
+            universe, max_instruments=2, batch_size=2, request_timeout_seconds=3
+        )
+
+    assert len(calls) == 2
+    assert calls == [["SYM0.NS", "SYM1.NS"], ["SYM2.NS", "SYM3.NS"]]
+    assert len(result) == 2
+    assert "scored=4/4" in caplog.text
