@@ -80,6 +80,7 @@ def _dividend_yield_calculation(
 
     events_total = None
     ttm_events = []
+    ttm_total = None
     normalized = None
 
     if history_state not in {"FETCHED", "SUCCESS", "OK"}:
@@ -114,9 +115,6 @@ def _dividend_yield_calculation(
             ttm_total = None
             status = "INVALID_DIVIDEND_HISTORY"
             history_error = history_error or str(exc)
-    if "ttm_total" not in locals():
-        ttm_total = None
-
     return {
         "dividend_yield_provider_raw": raw,
         "dividend_yield_provider_unit": "YAHOO_UNIT_UNVERIFIED",
@@ -368,8 +366,11 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
         except Exception:
             cached = None
     if CB.open:
-        fallback = cached or {}
-        fallback.setdefault("__dividend_history_status", "UNAVAILABLE")
+        fallback = dict(cached or {})
+        if fallback.get("__dividend_history_status") == "FETCHED":
+            fallback["__dividend_history_status"] = "STALE_CACHE"
+        else:
+            fallback.setdefault("__dividend_history_status", "UNAVAILABLE")
         fallback.setdefault("__dividend_history_error", "Yahoo circuit breaker is active; no refresh attempted")
         return fallback
     for attempt in range(2):
@@ -403,7 +404,13 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
                 break
             if attempt == 0:
                 time.sleep(2)
-    return cached or {}
+            else:
+                logger.warning("Yahoo fundamentals/history fetch failed for %s: %s", ticker, message)
+    fallback = dict(cached or {})
+    if fallback.get("__dividend_history_status") != "FETCHED":
+        fallback["__dividend_history_status"] = "FETCH_FAILED"
+        fallback["__dividend_history_error"] = f"{type(exc).__name__}: {exc}"[:240]
+    return fallback
 
 def _metadata_text(value):
     """Return a clean metadata string or None for provider placeholders."""
