@@ -34,6 +34,7 @@ def test_no_dividend_history_events_means_verified_zero_yield():
     assert result["dividend_yield_history_event_count"] == 0
     assert result["dividend_yield_ttm_event_count"] == 0
     assert result["dividend_yield_ttm_dividend_amount"] == 0.0
+    assert result["dividend_yield_ttm_events"] == []
 
 
 def test_extreme_ttm_yield_is_quarantined():
@@ -42,6 +43,7 @@ def test_extreme_ttm_yield_is_quarantined():
     assert result["dividend_yield_status"] == "HIGH_YIELD_REVIEW"
     assert result["dividend_yield_ttm_dividend_amount"] == 20.0
     assert result["dividend_yield_ttm_event_count"] == 1
+    assert result["dividend_yield_ttm_events"] == [{"date": "2026-05-01", "amount": 20.0}]
 
 
 def test_stale_prices_are_not_rankable():
@@ -330,6 +332,8 @@ def test_dividend_yield_invalid_price_is_reported_separately():
     assert result["dividend_yield_status"] == "INVALID_PRICE"
     assert result["dividend_yield_pct"] is None
     assert result["dividend_yield_history_status"] == "FETCHED"
+    assert result["dividend_yield_ttm_event_count"] == 1
+    assert result["dividend_yield_ttm_dividend_amount"] == 1.0
 
 
 def test_failed_dividend_history_cache_is_retried(tmp_path, monkeypatch):
