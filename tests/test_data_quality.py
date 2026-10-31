@@ -179,6 +179,46 @@ def test_liquidity_screen_processes_exact_batch_slice_and_logs_coverage(monkeypa
     assert "scored=4/4" in caplog.text
 
 
+def test_merge_record_normalizes_yfinance_multiindex_columns():
+    import pandas as pd
+    from stock_etf.market import _merge_record
+
+    values = [[99.0, 101.0, 98.0, 100.0, 1000]]
+    fields = ["Open", "High", "Low", "Close", "Volume"]
+
+    # yfinance can return either (Price, Ticker) or (Ticker, Price).
+    for columns in (
+        pd.MultiIndex.from_product([fields, ["ABC.NS"]]),
+        pd.MultiIndex.from_product([["ABC.NS"], fields]),
+    ):
+        frame = pd.DataFrame(
+            values, columns=columns,
+            index=pd.to_datetime(["2026-10-30"]),
+        )
+        row = _merge_record(
+            {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
+            frame, {},
+        )
+        assert row.get("error") is None
+        assert row["price"] == 100.0
+
+
+def test_merge_record_skips_history_without_close_column():
+    import pandas as pd
+    from stock_etf.market import _merge_record
+
+    frame = pd.DataFrame(
+        {"Open": [99.0], "High": [101.0], "Low": [98.0], "Volume": [1000]},
+        index=pd.to_datetime(["2026-10-30"]),
+    )
+    row = _merge_record(
+        {"symbol": "BAD", "type": "STOCK", "exchange": "NSE"},
+        frame, {},
+    )
+    assert row["error"] == "historical data missing Close column"
+    assert row["data_confidence"] == 0
+
+
 def test_market_metadata_uses_known_exchange_currency_and_preserves_provider_units():
     import pandas as pd
     from stock_etf.market import _merge_record
