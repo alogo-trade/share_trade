@@ -74,6 +74,31 @@ def verify_candidates(
     confidence_threshold: float = 0.80,
 ) -> dict[str, Any]:
     """Classify deterministic PASS candidates. Ambiguous results fail closed to HOLD."""
+    if len(rows) > 20:
+        batches = [
+            verify_candidates(rows[offset:offset + 20], horizon, api_key, model, timeout_seconds,
+                              pass_threshold, reject_threshold, confidence_threshold)
+            for offset in range(0, len(rows), 20)
+        ]
+        decisions = [item for batch in batches for item in batch.get("decisions", [])]
+        statuses = {batch.get("status") for batch in batches}
+        usage = {}
+        for batch in batches:
+            for key, value in (batch.get("usage") or {}).items():
+                if isinstance(value, (int, float)):
+                    usage[key] = usage.get(key, 0) + value
+        return {
+            "status": "complete" if statuses == {"complete"} else "partial_or_error",
+            "model": next((batch.get("model") for batch in batches if batch.get("model")), model),
+            "evaluated_count": len(rows),
+            "pass_count": sum(batch.get("pass_count", 0) for batch in batches),
+            "hold_count": sum(batch.get("hold_count", 0) for batch in batches),
+            "reject_count": sum(batch.get("reject_count", 0) for batch in batches),
+            "usage": usage, "decisions": decisions, "batch_count": len(batches),
+            "policy": {"pass_probability_min": pass_threshold,
+                       "reject_probability_min": reject_threshold,
+                       "confidence_min": confidence_threshold},
+        }
     if not rows:
         return {"status": "no_candidates", "model": model, "evaluated_count": 0,
                 "pass_count": 0, "hold_count": 0, "reject_count": 0, "decisions": []}
@@ -84,13 +109,16 @@ def verify_candidates(
         return {"status": "missing_api_key", "model": model, "evaluated_count": len(rows),
                 "pass_count": 0, "hold_count": len(rows), "reject_count": 0, "decisions": decisions}
 
-    candidates = [_candidate_state(row, horizon) for row in rows]
+    candidates = {
+        f"candidate_{index}": _candidate_state(row, horizon)
+        for index, row in enumerate(rows)
+    }
     questions = {}
     for index in range(len(rows)):
         questions[f"candidate_{index}"] = {
             "type": "choice",
             "instructions": (
-                f"Classify candidates[{index}] for escalation to a separate generative research review. "
+                f"Classify the instrument in `candidate_{index}` for escalation to a separate generative research review. "
                 "Use only supplied facts. Do not forecast returns, infer missing facts, or recommend trades. "
                 "PASS means coherent and supported for further research; REVIEW means uncertain, "
                 "mixed, incomplete, or extended; REJECT means materially contradictory or clearly "
@@ -103,7 +131,7 @@ def verify_candidates(
         response = requests.post(
             DECISIONS_URL,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model, "state": {"horizon": horizon, "candidates": candidates},
+            json={"model": model, "state": {"horizon": horizon, **candidates},
                   "questions": questions},
             timeout=timeout_seconds,
         )
