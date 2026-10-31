@@ -24,7 +24,7 @@ Jev uses OpenRouter's Decisions API, not the chat-completions endpoint:
 - Default model: `typesafe/jev-1.14`
 - Credential: `OPENROUTER_API_KEY`
 
-The request sends a bounded set of quantitative candidate fields in `state` and a typed `choice` question. The choice labels are PASS, REVIEW and REJECT. The response includes a selected choice, per-choice probabilities and a confidence value. Jev does not return a natural-language rationale. The application records a policy description, not a model-generated explanation.
+The request sends a bounded set of quantitative candidate fields in `state` and a typed `choice` question. The choice criteria are an object mapping PASS, REVIEW and REJECT to descriptions. Requests are batched at no more than 20 candidates each. The response includes a selected choice, per-choice probabilities and a confidence value. Jev does not return a natural-language rationale. The application records a policy description, not a model-generated explanation.
 
 If the API key is missing, the request fails, or the answer is malformed, active Jev mode fails closed to HOLD. In shadow mode the error is recorded but does not affect rule-based decisions.
 
