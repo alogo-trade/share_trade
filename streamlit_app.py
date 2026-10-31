@@ -61,7 +61,10 @@ def prune_log_files(pattern: str, keep: int = LOG_RETENTION_COUNT, exclude=()):
 def cleanup_logs():
     """Apply bounded retention to UI and engine per-run logs."""
     prune_log_files("ui_run_*.log")
-    prune_log_files("stock_etf_*.log", exclude={"stock_etf_engine_latest.log"})
+    prune_log_files(
+        "stock_etf_*.log",
+        exclude={"stock_etf_engine_latest.log", "stock_etf_latest.log"},
+    )
 
 
 def configure_app_logging():
