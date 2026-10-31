@@ -35,7 +35,7 @@ Jev confidence is not investment accuracy. Calibrate thresholds on labelled hist
 | Variable | Default | Meaning |
 |---|---:|---|
 | `DECISION_PROVIDER` | `RULES` | RULES, JEV or HYBRID |
-| `DECISION_SHADOW_MODE` | `false` | Observe Jev without changing decisions |
+| `DECISION_SHADOW_MODE` | `true` | Observe Jev without changing decisions |
 | `OPENROUTER_API_KEY` | unset | OpenRouter credential; never store in dashboard JSON |
 | `JEV_MODEL` | `typesafe/jev-1.14` | Pinned Jev model |
 | `JEV_TIMEOUT_SECONDS` | `25` | HTTP timeout |
