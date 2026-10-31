@@ -1,6 +1,59 @@
 import json
 
-from stock_etf.us_engine import load_us_candidates, load_us_universe
+from stock_etf.us_engine import (
+    _normalise_yield_pct,
+    load_us_candidates,
+    load_us_universe,
+    run_us_research,
+)
+
+
+def test_yahoo_dividend_yield_ratio_is_converted_to_percentage_points():
+    assert _normalise_yield_pct(0.0602) == 6.02
+    assert _normalise_yield_pct(0.006) == 0.6
+    # Yahoo's dividendYield is a ratio, even when the numeric value exceeds 1.
+    assert _normalise_yield_pct(1.2) == 120.0
+
+
+def test_invalid_yahoo_dividend_yield_values_are_ignored():
+    assert _normalise_yield_pct(None) is None
+    assert _normalise_yield_pct(True) is None
+    assert _normalise_yield_pct(float("nan")) is None
+    assert _normalise_yield_pct(float("inf")) is None
+    assert _normalise_yield_pct(-0.01) is None
+    assert _normalise_yield_pct("not-a-number") is None
+
+
+def test_us_research_emits_normalized_dividend_yield_from_yahoo(tmp_path, monkeypatch):
+    import pandas as pd
+    import stock_etf.us_engine as us_engine
+
+    candidates = tmp_path / "candidates.json"
+    candidates.write_text(json.dumps({"instruments": [
+        {"symbol": "YIELD", "type": "STOCK", "zerodha_eligible": False}
+    ]}), encoding="utf-8")
+
+    class FakeTicker:
+        @property
+        def news(self):
+            return []
+
+        def history(self, **kwargs):
+            return pd.DataFrame()
+
+        @property
+        def info(self):
+            return {"dividendYield": 0.006}
+
+    monkeypatch.setattr(us_engine.yf, "Ticker", lambda _symbol: FakeTicker())
+
+    result = run_us_research(
+        universe_path=str(tmp_path / "verified.json"),
+        candidate_path=str(candidates),
+        limit=1,
+    )
+
+    assert result["instruments"][0]["dividend_yield_pct"] == 0.6
 
 
 def test_verified_loader_requires_explicit_eligibility_and_valid_type(tmp_path):
