@@ -979,13 +979,16 @@ def main():
         [],
     )
 
-    shortlist = result.get(
-        "local_ranking",
-        {},
-    ).get(
-        "llm_candidates",
-        [],
-    )
+    local_ranking = result.get("local_ranking", {})
+    shortlist = local_ranking.get("llm_candidates", [])
+    actionable = local_ranking.get("actionable")
+    if actionable is None:
+        # Backward compatibility with older analysis JSON files.
+        actionable = [
+            row for row in ranked
+            if row.get("decision_verdict") == "PASS"
+            and row.get("eligible_for_llm", True) is not False
+        ]
 
     news = result.get(
         "market",
@@ -1029,8 +1032,8 @@ def main():
     )
 
     c3.metric(
-        "Candidates",
-        len(shortlist),
+        "Actionable",
+        len(actionable),
     )
 
     c4.metric(
@@ -1083,7 +1086,7 @@ def main():
     with tab1:
 
         st.subheader(
-            f"Top candidates · "
+            f"Actionable opportunities · "
             f"{HORIZONS[result['metadata']['horizon']]}"
         )
 
@@ -1095,7 +1098,7 @@ def main():
 
         data = [
             x
-            for x in ranked
+            for x in actionable
             if x.get(
                 "instrument_type"
             )
@@ -1175,9 +1178,11 @@ def main():
         )
 
         st.caption(
-            "Market score is the original market-based score. "
-            "Portfolio score incorporates existing holdings "
-            "and concentration context."
+            "Ranking is quantitative ordering, not an eligibility decision. "
+            "Only instruments that pass the deterministic decision gate appear here. "
+            "HOLD and REJECT rows remain available in diagnostics, but are not actionable. "
+            "Market score is the original market-based score; portfolio score "
+            "incorporates existing holdings and concentration context."
         )
 
     # ==============================================================
