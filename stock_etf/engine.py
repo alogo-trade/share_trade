@@ -347,6 +347,7 @@ def run(
             50,
             settings.vector_limit * 3,
         ),
+        max_age_days=settings.news_max_age_days,
     )
 
     news_query = " ".join(
