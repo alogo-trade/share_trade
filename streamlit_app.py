@@ -56,10 +56,48 @@ HOLDINGS_PATH = ROOT / os.getenv(
     "backend_state/zerodha_holdings.json",
 )
 
+DECISION_CONFIG_PATH = ROOT / os.getenv(
+    "DECISION_CONFIG_PATH",
+    "backend_state/decision_config.json",
+)
+
 
 # ======================================================================
 # General helpers
 # ======================================================================
+
+def load_decision_config():
+    defaults = {
+        "provider": os.getenv("DECISION_PROVIDER", "RULES").upper(),
+        "shadow_mode": os.getenv("DECISION_SHADOW_MODE", "false").lower() in {"1", "true", "yes"},
+        "jev_model": os.getenv("JEV_MODEL", "typesafe/jev-1.14"),
+        "jev_timeout_seconds": int(os.getenv("JEV_TIMEOUT_SECONDS", "25")),
+        "jev_pass_probability_threshold": float(os.getenv("JEV_PASS_PROBABILITY_THRESHOLD", "0.80")),
+        "jev_reject_probability_threshold": float(os.getenv("JEV_REJECT_PROBABILITY_THRESHOLD", "0.80")),
+        "jev_confidence_threshold": float(os.getenv("JEV_CONFIDENCE_THRESHOLD", "0.80")),
+        "hybrid_pass_probability_threshold": float(os.getenv("HYBRID_PASS_PROBABILITY_THRESHOLD", "0.90")),
+        "hybrid_confidence_threshold": float(os.getenv("HYBRID_CONFIDENCE_THRESHOLD", "0.90")),
+        "max_data_age_days": int(os.getenv("DECISION_MAX_DATA_AGE_DAYS", "7")),
+        "min_data_confidence": float(os.getenv("DECISION_MIN_DATA_CONFIDENCE", "70")),
+        "min_observations_short": int(os.getenv("DECISION_MIN_OBSERVATIONS_SHORT", "50")),
+        "min_observations_mid": int(os.getenv("DECISION_MIN_OBSERVATIONS_MID", "100")),
+        "min_observations_long": int(os.getenv("DECISION_MIN_OBSERVATIONS_LONG", "200")),
+        "max_rsi_short": float(os.getenv("DECISION_MAX_RSI_SHORT", "85")),
+        "max_distance_sma20_short_pct": float(os.getenv("DECISION_MAX_DISTANCE_SMA20_SHORT_PCT", "20")),
+    }
+    try:
+        stored = json.loads(DECISION_CONFIG_PATH.read_text(encoding="utf-8"))
+        if isinstance(stored, dict):
+            defaults.update({key: value for key, value in stored.items() if key in defaults})
+    except (OSError, ValueError, TypeError):
+        pass
+    return defaults
+
+
+def save_decision_config(config):
+    DECISION_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DECISION_CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
 
 def sync_profile():
     profile = save_profile(
@@ -201,6 +239,7 @@ def run_engine(
     age,
     capital,
     enable_llm,
+    decision_config,
 ):
     """
     Run the research engine explicitly.
@@ -237,6 +276,29 @@ def run_engine(
         if enable_llm
         else "false"
     )
+
+    env_map = {
+        "DECISION_PROVIDER": "provider",
+        "DECISION_SHADOW_MODE": "shadow_mode",
+        "JEV_MODEL": "jev_model",
+        "JEV_TIMEOUT_SECONDS": "jev_timeout_seconds",
+        "JEV_PASS_PROBABILITY_THRESHOLD": "jev_pass_probability_threshold",
+        "JEV_REJECT_PROBABILITY_THRESHOLD": "jev_reject_probability_threshold",
+        "JEV_CONFIDENCE_THRESHOLD": "jev_confidence_threshold",
+        "HYBRID_PASS_PROBABILITY_THRESHOLD": "hybrid_pass_probability_threshold",
+        "HYBRID_CONFIDENCE_THRESHOLD": "hybrid_confidence_threshold",
+        "DECISION_MAX_DATA_AGE_DAYS": "max_data_age_days",
+        "DECISION_MIN_DATA_CONFIDENCE": "min_data_confidence",
+        "DECISION_MIN_OBSERVATIONS_SHORT": "min_observations_short",
+        "DECISION_MIN_OBSERVATIONS_MID": "min_observations_mid",
+        "DECISION_MIN_OBSERVATIONS_LONG": "min_observations_long",
+        "DECISION_MAX_RSI_SHORT": "max_rsi_short",
+        "DECISION_MAX_DISTANCE_SMA20_SHORT_PCT": "max_distance_sma20_short_pct",
+    }
+    for env_key, config_key in env_map.items():
+        value = decision_config.get(config_key)
+        if value is not None:
+            env[env_key] = str(value).lower() if isinstance(value, bool) else str(value)
 
     env["INVESTOR_PROFILE_PATH"] = str(
         PROFILE_PATH
@@ -496,6 +558,9 @@ def main():
     if "llm" not in st.session_state:
         st.session_state.llm = False
 
+    if "decision_config" not in st.session_state:
+        st.session_state.decision_config = load_decision_config()
+
     if (
         "profile_sync_message"
         not in st.session_state
@@ -595,6 +660,83 @@ def main():
             key="llm",
         )
 
+        st.divider()
+        st.header("Decision model")
+        dc = st.session_state.decision_config
+        dc["provider"] = st.selectbox(
+            "Provider",
+            ["RULES", "JEV", "HYBRID"],
+            index=["RULES", "JEV", "HYBRID"].index(dc["provider"])
+            if dc["provider"] in {"RULES", "JEV", "HYBRID"} else 0,
+            help="RULES is the default. JEV and HYBRID call the OpenRouter Decisions API.",
+        )
+        dc["shadow_mode"] = st.toggle(
+            "Shadow mode",
+            value=bool(dc["shadow_mode"]),
+            help="Run Jev for comparison but retain rule-only verdicts and LLM eligibility.",
+            disabled=dc["provider"] == "RULES",
+        )
+        with st.expander("Jev configuration", expanded=dc["provider"] != "RULES"):
+            dc["jev_model"] = st.text_input("Jev model", value=str(dc["jev_model"]))
+            dc["jev_timeout_seconds"] = st.number_input(
+                "API timeout (seconds)", min_value=1, max_value=120,
+                value=int(dc["jev_timeout_seconds"]), step=1,
+            )
+            dc["jev_pass_probability_threshold"] = st.slider(
+                "Jev PASS probability", 0.50, 1.00,
+                float(dc["jev_pass_probability_threshold"]), 0.01,
+            )
+            dc["jev_reject_probability_threshold"] = st.slider(
+                "Jev REJECT probability", 0.50, 1.00,
+                float(dc["jev_reject_probability_threshold"]), 0.01,
+            )
+            dc["jev_confidence_threshold"] = st.slider(
+                "Jev confidence threshold", 0.50, 1.00,
+                float(dc["jev_confidence_threshold"]), 0.01,
+            )
+            dc["hybrid_pass_probability_threshold"] = st.slider(
+                "HYBRID PASS probability", 0.50, 1.00,
+                float(dc["hybrid_pass_probability_threshold"]), 0.01,
+            )
+            dc["hybrid_confidence_threshold"] = st.slider(
+                "HYBRID confidence threshold", 0.50, 1.00,
+                float(dc["hybrid_confidence_threshold"]), 0.01,
+            )
+
+        with st.expander("Deterministic rule thresholds"):
+            dc["max_data_age_days"] = st.number_input(
+                "Maximum data age (days)", min_value=0, max_value=90,
+                value=int(dc["max_data_age_days"]), step=1,
+            )
+            dc["min_data_confidence"] = st.slider(
+                "Minimum data confidence (%)", 0.0, 100.0,
+                float(dc["min_data_confidence"]), 1.0,
+            )
+            dc["min_observations_short"] = st.number_input(
+                "Minimum observations, short-term", min_value=1, max_value=1000,
+                value=int(dc["min_observations_short"]), step=5,
+            )
+            dc["min_observations_mid"] = st.number_input(
+                "Minimum observations, mid-term", min_value=1, max_value=2000,
+                value=int(dc["min_observations_mid"]), step=5,
+            )
+            dc["min_observations_long"] = st.number_input(
+                "Minimum observations, long-term", min_value=1, max_value=3000,
+                value=int(dc["min_observations_long"]), step=5,
+            )
+            dc["max_rsi_short"] = st.number_input(
+                "Maximum short-term RSI", min_value=1.0, max_value=100.0,
+                value=float(dc["max_rsi_short"]), step=1.0,
+            )
+            dc["max_distance_sma20_short_pct"] = st.number_input(
+                "Maximum extension over SMA20 (%)", min_value=0.0, max_value=200.0,
+                value=float(dc["max_distance_sma20_short_pct"]), step=1.0,
+            )
+
+        if st.button("Save decision configuration", use_container_width=True):
+            save_decision_config(dc)
+            st.success(f"Saved decision settings to {DECISION_CONFIG_PATH.relative_to(ROOT)}")
+
         # ----------------------------------------------------------
         # Explicit analysis button
         # ----------------------------------------------------------
@@ -610,6 +752,7 @@ def main():
                 st.session_state.age,
                 st.session_state.capital,
                 st.session_state.llm,
+                st.session_state.decision_config,
             )
 
             if result is not None:
