@@ -1,6 +1,7 @@
 from __future__ import annotations
-import logging, urllib.parse, requests, feedparser
-from datetime import datetime, timezone
+import logging, urllib.parse, requests, feedparser, re
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 
 logger = logging.getLogger('stock_etf')
 HEADERS = {
@@ -89,18 +90,64 @@ SECTOR_THEMES = {
 def _query_rows(query, category, provider, symbol='THEMATIC'):
     return {'query': query, 'category': category, 'provider': provider, 'symbol': symbol}
 
-def _dedupe(items, limit):
+def _published_at(value):
+    """Parse RSS/ISO publication timestamps to an aware UTC datetime."""
+    if not value:
+        return None
+    raw = str(value).strip()
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        try:
+            parsed = parsedate_to_datetime(raw)
+        except (TypeError, ValueError, OverflowError):
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _canonical_news_key(item):
+    link = str(item.get("link") or "").strip()
+    if link:
+        parsed = urllib.parse.urlsplit(link)
+        query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+        query = [
+            (key, value) for key, value in query
+            if not key.lower().startswith("utm_")
+            and key.lower() not in {"fbclid", "gclid", "ocid", "ref", "source"}
+        ]
+        return urllib.parse.urlunsplit((
+            parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"),
+            urllib.parse.urlencode(sorted(query)), ""
+        ))
+    title = re.sub(r"[^a-z0-9]+", " ", str(item.get("title") or "").lower()).strip()
+    return title
+
+
+def _dedupe(items, limit, max_age_days=30, now=None):
+    """Remove duplicate and old articles, then prefer the newest publications."""
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=max(0, int(max_age_days)))
     seen = set()
-    out = []
-    for x in items:
-        key = (x.get('link') or '').strip() or (x.get('title', '').strip().lower())
+    accepted = []
+    for item in items:
+        key = _canonical_news_key(item)
         if not key or key in seen:
             continue
         seen.add(key)
-        out.append(x)
-        if len(out) >= limit:
-            break
-    return out
+        published = _published_at(item.get("published"))
+        if published and (published < cutoff or published > now + timedelta(days=1)):
+            continue
+        row = dict(item)
+        row["published_at_utc"] = published.isoformat() if published else None
+        row["news_freshness"] = "DATED" if published else "UNKNOWN_DATE"
+        row["_sort_timestamp"] = published.timestamp() if published else float("-inf")
+        accepted.append(row)
+    accepted.sort(key=lambda row: row["_sort_timestamp"], reverse=True)
+    for row in accepted:
+        row.pop("_sort_timestamp", None)
+    return accepted[:limit]
 
 
 def _feed(url, provider, symbol, failures):
@@ -191,7 +238,7 @@ def _yfinance_news(symbol, failures):
         return []
 
 
-def fetch_news(instruments, limit=50, thematic_limit=24):
+def fetch_news(instruments, limit=50, thematic_limit=24, max_age_days=30):
     """Collect company, sector, India, global, geopolitical, commodity and environmental news.
 
     instruments may be shortlisted market-data records or plain symbols. Thematic queries
@@ -258,7 +305,9 @@ def fetch_news(instruments, limit=50, thematic_limit=24):
             if len(out) >= limit:
                 break
 
-    out = _dedupe(out, limit)
+    before_filter = len(out)
+    out = _dedupe(out, limit, max_age_days=max_age_days)
+    logger.info('News freshness filter: received=%d, retained=%d, max_age_days=%d.', before_filter, len(out), max_age_days)
     logger.info('News feed loaded: %d entries from %d symbols + %d sectors + %d thematic queries.',
                 len(out), len(symbols), len(sector_queries[:8]), min(thematic_limit, len(BASE_THEMES)))
     if not out:
