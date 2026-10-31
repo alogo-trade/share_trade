@@ -404,3 +404,100 @@ def test_failed_dividend_history_cache_is_retried(tmp_path, monkeypatch):
     assert first["__dividend_history_status"] == "FETCH_FAILED"
     assert second["__dividend_history_status"] == "FETCH_FAILED"
     assert ticker.calls == 2
+
+
+
+def test_batched_dividend_actions_cover_records_without_individual_fundamentals():
+    import pandas as pd
+    from stock_etf.market import _merge_record
+
+    frame = pd.DataFrame(
+        {
+            "Open": [99.0, 100.0], "High": [101.0, 102.0],
+            "Low": [98.0, 99.0], "Close": [100.0, 100.0],
+            "Volume": [1000, 1100], "Dividends": [0.0, 1.0],
+        },
+        index=pd.to_datetime(["2026-05-01", "2026-10-30"]),
+    )
+    row = _merge_record(
+        {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"}, frame, {}
+    )
+    assert row["dividend_yield_history_status"] == "FETCHED"
+    assert row["dividend_yield_history_source"] == "YAHOO_BATCHED_ACTIONS"
+    assert row["dividend_yield_ttm_event_count"] == 1
+    assert row["dividend_yield_ttm_dividend_amount"] == 1.0
+    assert row["dividend_yield_pct"] == 1.0
+
+
+def test_batched_empty_dividend_actions_are_confirmed_zero_yield():
+    import pandas as pd
+    from stock_etf.market import _merge_record
+
+    frame = pd.DataFrame(
+        {
+            "Open": [99.0, 100.0], "High": [101.0, 102.0],
+            "Low": [98.0, 99.0], "Close": [100.0, 100.0],
+            "Volume": [1000, 1100], "Dividends": [0.0, 0.0],
+        },
+        index=pd.to_datetime(["2026-05-01", "2026-10-30"]),
+    )
+    row = _merge_record(
+        {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"}, frame, {}
+    )
+    assert row["dividend_yield_history_status"] == "FETCHED"
+    assert row["dividend_yield_status"] == "NO_DIVIDENDS_IN_TRAILING_365D"
+    assert row["dividend_yield_pct"] == 0.0
+    assert row["dividend_yield_ttm_event_count"] == 0
+
+
+def test_missing_batched_dividend_actions_have_explicit_reason():
+    import pandas as pd
+    from stock_etf.market import _merge_record
+
+    frame = pd.DataFrame(
+        {
+            "Open": [99.0, 100.0], "High": [101.0, 102.0],
+            "Low": [98.0, 99.0], "Close": [100.0, 101.0],
+            "Volume": [1000, 1100],
+        },
+        index=pd.to_datetime(["2026-10-29", "2026-10-30"]),
+    )
+    row = _merge_record(
+        {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"}, frame, {}
+    )
+    assert row["dividend_yield_history_status"] == "UNAVAILABLE"
+    assert "Dividends action column" in row["dividend_yield_history_error"]
+    assert row["dividend_yield_history_source"] == "UNAVAILABLE"
+
+
+def test_market_history_cache_without_actions_is_refreshed(tmp_path, monkeypatch):
+    import pandas as pd
+    import stock_etf.market as market
+
+    old_frame = pd.DataFrame(
+        {"Open": [99.0], "High": [101.0], "Low": [98.0],
+         "Close": [100.0], "Volume": [1000]},
+        index=pd.to_datetime(["2026-10-30"]),
+    )
+    old_frame.to_parquet(tmp_path / "ABC.parquet")
+    calls = []
+
+    def fake_download(symbols, **kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame(
+            {
+                ("ABC", "Open"): [99.0], ("ABC", "High"): [101.0],
+                ("ABC", "Low"): [98.0], ("ABC", "Close"): [100.0],
+                ("ABC", "Volume"): [1000], ("ABC", "Dividends"): [0.0],
+            },
+            index=pd.to_datetime(["2026-10-30"]),
+        )
+
+    monkeypatch.setattr(market, "CB", type("CB", (), {"open": False})())
+    monkeypatch.setattr(market.yf, "download", fake_download)
+    result = market._history_batch(
+        ["ABC"], cache_dir=str(tmp_path), cache_ttl_hours=24,
+    )
+    assert calls and calls[0]["actions"] is True
+    normalized = market._normalise_history_columns(result["ABC"], "ABC")
+    assert "Dividends" in normalized.columns
