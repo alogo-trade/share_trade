@@ -91,11 +91,14 @@ def _dividend_yield_calculation(
         try:
             events = _normalise_dividend_history(dividend_history)
             events_total = len(events)
-            ttm_events = [
-                (event_date, amount)
-                for event_date, amount in events
-                if amount > 0 and start < event_date <= end
-            ]
+            ttm_events = sorted(
+                [
+                    (event_date, amount)
+                    for event_date, amount in events
+                    if amount > 0 and start < event_date <= end
+                ],
+                key=lambda event: event[0],
+            )
             ttm_total = round(sum(amount for _, amount in ttm_events), 6)
             if current_price is None or current_price <= 0:
                 status = "INVALID_PRICE"
@@ -129,6 +132,10 @@ def _dividend_yield_calculation(
         "dividend_yield_history_event_count": events_total,
         "dividend_yield_ttm_event_count": len(ttm_events) if events_total is not None else None,
         "dividend_yield_ttm_dividend_amount": ttm_total,
+        "dividend_yield_ttm_events": (
+            [{"date": str(event_date.date()), "amount": amount} for event_date, amount in ttm_events]
+            if events_total is not None else None
+        ),
         "dividend_yield_calculation_price": current_price,
         "dividend_yield_calculation_price_date": str(price_date)[:10] if price_date is not None else (str(end.date()) if end is not None else None),
         "dividend_yield_period_start": str(start.date()) if start is not None else None,
