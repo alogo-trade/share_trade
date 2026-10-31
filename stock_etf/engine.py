@@ -243,7 +243,7 @@ def run(
                 evaluated = by_symbol.get(str(row.get("symbol", "")).upper())
                 if evaluated:
                     for key in ("decision_verdict", "eligible_for_llm", "jev_verdict",
-                                "jev_probability", "jev_confidence", "jev_reason", "jev_model"):
+                                "jev_probability", "jev_confidence", "jev_reason", "jev_model", "deterministic_decision_verdict"):
                         if key in evaluated:
                             row[key] = evaluated[key]
                     detail = row.get("decision_model", {})
