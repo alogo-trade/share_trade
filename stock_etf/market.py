@@ -129,54 +129,62 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
             retain_stale(symbol)
         return out
 
+    def download_isolated(group):
+        """Download a group, recursively splitting failed batches to isolate bad tickers."""
+        try:
+            data = yf.download(
+                group, period=period, auto_adjust=True, actions=False,
+                progress=False, threads=False, group_by='ticker',
+                timeout=request_timeout_seconds
+            )
+            if data is None or data.empty:
+                raise RuntimeError('empty Yahoo batch response')
+            frames = {}
+            for symbol in group:
+                try:
+                    frame = data if len(group) == 1 else data[symbol]
+                    if frame is not None and not frame.empty:
+                        frame = frame.dropna(how='all')
+                        if not frame.empty:
+                            frames[symbol] = frame
+                except Exception as exc:
+                    logger.warning('Yahoo returned no usable history for %s: %s', symbol, exc)
+            return frames
+        except Exception as exc:
+            message = str(exc)
+            if 'Too Many Requests' in message or 'RateLimit' in message or '429' in message:
+                CB.trip(message)
+                return {}
+            if len(group) == 1:
+                logger.warning('Yahoo history failed for %s after bounded request: %s', group[0], message)
+                return {}
+            midpoint = len(group) // 2
+            logger.warning(
+                'Yahoo batch of %d failed; splitting into %d and %d symbols: %s',
+                len(group), midpoint, len(group) - midpoint, message
+            )
+            left = download_isolated(group[:midpoint])
+            if CB.open:
+                return left
+            right = download_isolated(group[midpoint:])
+            left.update(right)
+            return left
+
     for start in range(0, len(missing), batch_size):
         batch = missing[start:start + batch_size]
-        batch_loaded = set()
-        for attempt in range(retries + 1):
+        refreshed = download_isolated(batch)
+        for symbol, frame in refreshed.items():
+            frame.attrs['cache_status'] = 'REFRESHED'
+            frame.attrs['cache_age_hours'] = 0.0
+            frame.attrs['data_source'] = 'Yahoo Finance'
+            out[symbol] = frame
             try:
-                data = yf.download(
-                    batch, period=period, auto_adjust=True, actions=False,
-                    progress=False, threads=False, group_by='ticker', timeout=request_timeout_seconds
-                )
-                if data is None or data.empty:
-                    raise RuntimeError('empty Yahoo batch response')
-                for symbol in batch:
-                    try:
-                        frame = data if len(batch) == 1 else data[symbol]
-                        if frame is None or frame.empty:
-                            continue
-                        frame = frame.dropna(how='all')
-                        if frame.empty:
-                            continue
-                        frame.attrs['cache_status'] = 'REFRESHED'
-                        frame.attrs['cache_age_hours'] = 0.0
-                        frame.attrs['data_source'] = 'Yahoo Finance'
-                        out[symbol] = frame
-                        batch_loaded.add(symbol)
-                        try:
-                            frame.to_parquet(cache / (symbol.replace('/', '_') + '.parquet'))
-                        except Exception as exc:
-                            logger.debug('Could not cache %s history: %s', symbol, exc)
-                    except Exception as exc:
-                        logger.debug('Could not extract %s from batch: %s', symbol, exc)
-                logger.info(
-                    'Yahoo batch history: %d/%d symbols refreshed.',
-                    len(batch_loaded), len(batch)
-                )
-                break
+                frame.to_parquet(cache / (symbol.replace('/', '_') + '.parquet'))
             except Exception as exc:
-                message = str(exc)
-                if 'Too Many Requests' in message or 'RateLimit' in message or '429' in message:
-                    CB.trip(message)
-                    break
-                if attempt < retries:
-                    delay = 2 ** attempt
-                    logger.warning('Yahoo batch failed, retrying in %ss: %s', delay, message)
-                    time.sleep(delay)
-                else:
-                    logger.warning('Yahoo batch failed after retries: %s', message)
+                logger.debug('Could not cache %s history: %s', symbol, exc)
+        logger.info('Yahoo batch history: %d/%d symbols refreshed.', len(refreshed), len(batch))
         for symbol in batch:
-            if symbol not in batch_loaded:
+            if symbol not in refreshed:
                 retain_stale(symbol)
         if CB.open:
             for symbol in missing[start + len(batch):]:
