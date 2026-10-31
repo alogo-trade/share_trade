@@ -302,6 +302,7 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
                 logger.warning("Yahoo returned no usable history for isolated symbol %s.", group[0])
             return frames
         except Exception as exc:
+            last_error = exc
             message = str(exc)
             if 'Too Many Requests' in message or 'RateLimit' in message or '429' in message:
                 CB.trip(message)
@@ -373,6 +374,7 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
             fallback.setdefault("__dividend_history_status", "UNAVAILABLE")
         fallback.setdefault("__dividend_history_error", "Yahoo circuit breaker is active; no refresh attempted")
         return fallback
+    last_error = None
     for attempt in range(2):
         try:
             instrument = yf.Ticker(ticker)
@@ -408,8 +410,11 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
                 logger.warning("Yahoo fundamentals/history fetch failed for %s: %s", ticker, message)
     fallback = dict(cached or {})
     if fallback.get("__dividend_history_status") != "FETCHED":
-        fallback["__dividend_history_status"] = "FETCH_FAILED"
-        fallback["__dividend_history_error"] = f"{type(exc).__name__}: {exc}"[:240]
+        fallback["__dividend_history_status"] = "FETCH_FAILED" if last_error else "UNAVAILABLE"
+        fallback["__dividend_history_error"] = (
+            f"{type(last_error).__name__}: {last_error}"[:240]
+            if last_error else "Yahoo returned no usable fundamentals payload"
+        )
     return fallback
 
 def _metadata_text(value):
