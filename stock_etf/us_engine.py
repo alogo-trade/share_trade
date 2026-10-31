@@ -15,41 +15,55 @@ MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT = 15.0
 
 
 def _normalise_yield_pct(value: Any) -> float | None:
-    """Convert Yahoo's fractional dividendYield and reject implausible yields."""
-    if isinstance(value, bool) or value is None:
-        return None
+    """Provider dividendYield is intentionally not scaled without unit proof."""
+    return None
+
+
+def _yield_metadata(
+    provider_value: Any,
+    dividend_history: Any = None,
+    price: Any = None,
+    as_of: Any = None,
+) -> dict[str, Any]:
+    """Publish only TTM yield derived from actual dividend events and price."""
     try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if not np.isfinite(number) or number < 0 or number > 1:
-        return None
-    pct = round(number * 100, 2)
-    return pct if pct <= MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT else None
-
-
-def _yield_metadata(value: Any) -> dict[str, Any]:
-    if isinstance(value, bool) or value is None:
-        raw = None
-    else:
-        try:
-            raw = float(value)
-        except (TypeError, ValueError):
+        raw = float(provider_value) if provider_value is not None and not isinstance(provider_value, bool) else None
+        if raw is not None and not np.isfinite(raw):
             raw = None
-    normalized = _normalise_yield_pct(value)
-    if raw is None or not np.isfinite(raw):
-        status = "MISSING"
-    elif raw < 0 or raw > 1:
-        status = "INVALID_PROVIDER_VALUE"
-    elif normalized is None:
-        status = "IMPLAUSIBLE_YIELD"
-    else:
-        status = "VALID"
+    except (TypeError, ValueError):
+        raw = None
+
+    try:
+        current_price = float(price)
+        if dividend_history is None or not np.isfinite(current_price) or current_price <= 0:
+            raise ValueError("dividend history or valid price unavailable")
+        end = np.datetime64(as_of, "D") if as_of is not None else np.datetime64("today", "D")
+        start = end - np.timedelta64(365, "D")
+        paid = []
+        for event_date, amount in dividend_history:
+            event_day = np.datetime64(event_date, "D")
+            amount = float(amount)
+            if np.isfinite(amount) and amount > 0 and start < event_day <= end:
+                paid.append(amount)
+        if not paid:
+            normalized, status = 0.0, "NO_DIVIDENDS_IN_TRAILING_365D"
+        else:
+            calculated = round(sum(paid) / current_price * 100, 2)
+            if calculated > MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT:
+                normalized, status = None, "HIGH_YIELD_REVIEW"
+            else:
+                normalized, status = calculated, "VERIFIED_TTM_CASH_DIVIDENDS"
+    except Exception:
+        normalized, status = None, "UNVERIFIED_HISTORY_OR_PRICE"
+
     return {
+        "dividend_yield_provider_raw": raw,
+        "dividend_yield_provider_unit": "YAHOO_UNIT_UNVERIFIED",
         "dividend_yield_raw": raw,
-        "dividend_yield_raw_unit": "YAHOO_FRACTION",
+        "dividend_yield_raw_unit": "YAHOO_UNIT_UNVERIFIED",
         "dividend_yield_pct": normalized,
         "dividend_yield_status": status,
+        "dividend_yield_method": "TRAILING_365D_DIVIDENDS_OVER_LATEST_CLOSE",
     }
 
 
@@ -245,7 +259,21 @@ def run_us_research(
                 else "UNAVAILABLE"
             )
             row["expense_ratio"] = info.get("annualReportExpenseRatio")
-            row.update(_yield_metadata(info.get("dividendYield")))
+            dividend_history = None
+            try:
+                dividend_series = ticker.dividends
+                dividend_history = [
+                    (str(event_date)[:10], float(amount))
+                    for event_date, amount in (dividend_series.items() if dividend_series is not None else [])
+                ]
+            except Exception as dividend_exc:
+                logger.warning("US dividend history unavailable for %s: %s", symbol, dividend_exc)
+            row.update(_yield_metadata(
+                info.get("dividendYield"),
+                dividend_history,
+                row.get("price"),
+                as_of=history.index[-1] if not history.empty else None,
+            ))
             one, six = row.get("change_1m_pct"), row.get("change_6m_pct")
             if one is not None or six is not None:
                 score = (
