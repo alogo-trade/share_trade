@@ -202,7 +202,10 @@ def run_us_research(
             market_cap = info.get("marketCap")
             row["currency"] = currency
             row["price_currency"] = currency
-            row["market_cap_currency"] = currency if market_cap is not None else None
+            if "price_usd" in row:
+                row["price"] = row["price_usd"]
+                row["price_usd"] = row["price"] if currency == "USD" else None
+            row["market_cap_currency"] = currency
             row["market_cap"] = market_cap
             row["market_cap_usd"] = market_cap if currency == "USD" else None
             row["sector"] = sector
