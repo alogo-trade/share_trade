@@ -114,3 +114,22 @@ class Settings:
     us_universe_path: str = os.getenv("ZERODHA_US_UNIVERSE_PATH", "data/zerodha_us_universe.json")
     us_candidate_universe_path: str = os.getenv("US_CANDIDATE_UNIVERSE_PATH", "data/us_candidate_universe.json")
     us_analysis_limit: int = int(os.getenv("US_ANALYSIS_UNIVERSE_LIMIT", "30"))
+
+    # Configurable pre-LLM decision provider. RULES remains the safe default.
+    decision_provider: str = os.getenv("DECISION_PROVIDER", "RULES").strip().upper()
+    decision_shadow_mode: bool = os.getenv("DECISION_SHADOW_MODE", "false").lower() in {"1", "true", "yes"}
+    jev_model: str = os.getenv("JEV_MODEL", "typesafe/jev-1.14")
+    jev_timeout_seconds: int = int(os.getenv("JEV_TIMEOUT_SECONDS", "25"))
+    jev_pass_probability_threshold: float = float(os.getenv("JEV_PASS_PROBABILITY_THRESHOLD", "0.80"))
+    jev_reject_probability_threshold: float = float(os.getenv("JEV_REJECT_PROBABILITY_THRESHOLD", "0.80"))
+    jev_confidence_threshold: float = float(os.getenv("JEV_CONFIDENCE_THRESHOLD", "0.80"))
+    hybrid_pass_probability_threshold: float = float(os.getenv("HYBRID_PASS_PROBABILITY_THRESHOLD", "0.90"))
+    hybrid_confidence_threshold: float = float(os.getenv("HYBRID_CONFIDENCE_THRESHOLD", "0.90"))
+
+    decision_max_data_age_days: int = int(os.getenv("DECISION_MAX_DATA_AGE_DAYS", "7"))
+    decision_min_data_confidence: float = float(os.getenv("DECISION_MIN_DATA_CONFIDENCE", "70"))
+    decision_min_observations_short: int = int(os.getenv("DECISION_MIN_OBSERVATIONS_SHORT", "50"))
+    decision_min_observations_mid: int = int(os.getenv("DECISION_MIN_OBSERVATIONS_MID", "100"))
+    decision_min_observations_long: int = int(os.getenv("DECISION_MIN_OBSERVATIONS_LONG", "200"))
+    decision_max_rsi_short: float = float(os.getenv("DECISION_MAX_RSI_SHORT", "85"))
+    decision_max_distance_sma20_short_pct: float = float(os.getenv("DECISION_MAX_DISTANCE_SMA20_SHORT_PCT", "20"))
