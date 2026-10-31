@@ -142,3 +142,36 @@ def test_liquidity_screen_processes_exact_batch_slice_and_logs_coverage(monkeypa
     assert calls == [["SYM0.NS", "SYM1.NS"], ["SYM2.NS", "SYM3.NS"]]
     assert len(result) == 2
     assert "scored=4/4" in caplog.text
+
+
+def test_market_metadata_uses_known_exchange_currency_and_preserves_provider_units():
+    import pandas as pd
+    from stock_etf.market import _merge_record
+
+    frame = pd.DataFrame(
+        {"Open": [99.0], "High": [101.0], "Low": [98.0], "Close": [100.0], "Volume": [1000]},
+        index=pd.to_datetime(["2026-10-30"]),
+    )
+
+    nse = _merge_record(
+        {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
+        frame,
+        {},
+    )
+    assert nse["currency"] == "INR"
+    assert nse["price_currency"] == "INR"
+    assert nse["market_cap_currency"] == "INR"
+    assert nse["sector_metadata_source"] == "UNAVAILABLE"
+
+    provider_metadata = _merge_record(
+        {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
+        frame,
+        {"currency": "USD", "marketCap": 1234, "sector": "Technology", "industry": "Software"},
+    )
+    assert provider_metadata["currency"] == "USD"
+    assert provider_metadata["market_cap"] == 1234.0
+    assert provider_metadata["market_cap_currency"] == "USD"
+    assert provider_metadata["market_cap_inr"] is None
+    assert provider_metadata["sector"] == "Technology"
+    assert provider_metadata["sector_metadata_source"] == "YAHOO_FINANCE"
+
