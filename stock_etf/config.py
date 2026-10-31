@@ -135,6 +135,8 @@ class Settings:
     hybrid_confidence_threshold: float = float(os.getenv("HYBRID_CONFIDENCE_THRESHOLD", "0.90"))
 
     decision_max_data_age_days: int = int(os.getenv("DECISION_MAX_DATA_AGE_DAYS", "7"))
+    decision_max_market_sessions_age: int = int(os.getenv("DECISION_MAX_MARKET_SESSIONS_AGE", "2"))
+    news_max_age_days: int = int(os.getenv("NEWS_MAX_AGE_DAYS", "30"))
     decision_min_data_confidence: float = float(os.getenv("DECISION_MIN_DATA_CONFIDENCE", "70"))
     decision_min_observations_short: int = int(os.getenv("DECISION_MIN_OBSERVATIONS_SHORT", "50"))
     decision_min_observations_mid: int = int(os.getenv("DECISION_MIN_OBSERVATIONS_MID", "100"))
