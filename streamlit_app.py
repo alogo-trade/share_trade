@@ -69,7 +69,7 @@ DECISION_CONFIG_PATH = ROOT / os.getenv(
 def load_decision_config():
     defaults = {
         "provider": os.getenv("DECISION_PROVIDER", "RULES").upper(),
-        "shadow_mode": os.getenv("DECISION_SHADOW_MODE", "false").lower() in {"1", "true", "yes"},
+        "shadow_mode": os.getenv("DECISION_SHADOW_MODE", "true").lower() in {"1", "true", "yes"},
         "jev_model": os.getenv("JEV_MODEL", "typesafe/jev-1.14"),
         "jev_timeout_seconds": int(os.getenv("JEV_TIMEOUT_SECONDS", "25")),
         "jev_pass_probability_threshold": float(os.getenv("JEV_PASS_PROBABILITY_THRESHOLD", "0.80")),
