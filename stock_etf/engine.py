@@ -246,6 +246,13 @@ def run(
                                 "jev_probability", "jev_confidence", "jev_reason", "jev_model"):
                         if key in evaluated:
                             row[key] = evaluated[key]
+                    detail = row.get("decision_model", {})
+                    detail["deterministic_verdict"] = row.get("deterministic_decision_verdict", "PASS")
+                    detail["verdict"] = row.get("decision_verdict", "HOLD")
+                    detail["eligible_for_llm"] = row.get("eligible_for_llm", False)
+                    detail["jev_verdict"] = row.get("jev_verdict")
+                    detail["jev_reason"] = row.get("jev_reason")
+                    row["decision_model"] = detail
 
     decision_summary = {
         "provider": provider,
