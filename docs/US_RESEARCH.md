@@ -55,18 +55,3 @@ Yahoo Finance supplies historical prices, fundamentals and available news. These
 - `US_ANALYSIS_UNIVERSE_LIMIT=30`
 
 The default limit is conservative because Yahoo Finance may throttle large batches.
-
-
-## Pre-LLM decision model
-
-The NSE pipeline applies a transparent, hand-authored decision tree after quantitative scoring and portfolio context, before the LLM call. It is not a trained ML model and does not predict returns.
-
-- Reject AVOID signals and records with no usable score or a market-data error.
-- Hold records with missing/stale dates (older than 7 calendar days), insufficient history, or confidence below 70%.
-- Minimum history is 50 observations for short-term, 100 for mid-term, and 200 for long-term analysis.
-- For short-term candidates, hold RSI above 85 or price extension above 20% over SMA20.
-- Only PASS candidates are sent to the LLM.
-- Only PASS candidates with SETUP/ACCUMULATE/QUALITY_CANDIDATE signals receive suggested allocation.
-- All decisions and reasons are persisted in the analysis JSON.
-
-These thresholds are initial guardrails and should be calibrated through backtesting before being treated as investment rules.
