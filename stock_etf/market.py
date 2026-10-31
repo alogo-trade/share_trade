@@ -225,6 +225,31 @@ def _merge_record(row, df, info):
     rec['data_confidence']=round((0.6*completeness+0.4*sample_coverage)*100)
     return rec
 
+def market_data_quality_summary(records):
+    """Summarise source and cache freshness without conflating it with candle age."""
+    from collections import Counter
+    providers = Counter()
+    cache_states = Counter()
+    last_dates = []
+    cache_ages = []
+    for row in records:
+        providers[str(row.get('data_source') or 'UNKNOWN')] += 1
+        cache_states[str(row.get('cache_status') or 'UNKNOWN')] += 1
+        if row.get('last_date'):
+            last_dates.append(str(row['last_date']))
+        age = _safe_float(row.get('cache_age_hours'))
+        if age is not None:
+            cache_ages.append(age)
+    return {
+        'instrument_count': len(records),
+        'provider_counts': dict(providers),
+        'cache_status_counts': dict(cache_states),
+        'latest_market_data_date': max(last_dates) if last_dates else None,
+        'oldest_market_data_date': min(last_dates) if last_dates else None,
+        'max_cache_age_hours': round(max(cache_ages), 2) if cache_ages else None,
+        'cache_age_is_not_market_data_age': True,
+        'note': 'Market-data freshness is determined by last_date and the decision gate. Cache age measures local cache refresh age only.'
+    }
 def liquidity_screen(universe,max_instruments=250,workers=3):
     if len(universe)<=max_instruments:return universe
     symbols=[yf_symbol(x) for x in universe]; scores={}
@@ -248,8 +273,8 @@ def liquidity_screen(universe,max_instruments=250,workers=3):
         logger.info('Liquidity screen: selected %d stocks and %d ETFs from %d instruments.',sum(x.get('type')=='STOCK' for x in chosen),sum(x.get('type')=='ETF' for x in chosen),len(universe)); return chosen
     except Exception as exc: logger.warning('Liquidity screen failed, using fallback: %s',exc); return universe[:max_instruments]
 
-def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache'):
-    symbols=[yf_symbol(x) for x in universe]; histories=_history_batch(symbols,history_period,batch_size=80,cache_dir=str(Path(cache_dir)/'market'))
+def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache',history_cache_ttl_hours=12,fundamentals_cache_ttl_hours=168):
+    symbols=[yf_symbol(x) for x in universe]; histories=_history_batch(symbols,history_period,batch_size=80,cache_dir=str(Path(cache_dir)/'market'),cache_ttl_hours=history_cache_ttl_hours)
     records=[]
     # Fundamentals are expensive and rate-limited. Use cached info first; otherwise fetch only the first 60 liquid candidates.
     for i,row in enumerate(universe):
@@ -257,7 +282,7 @@ def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache'):
         p=Path(cache_dir)/'fundamentals'/(ysym.replace('/','_')+'.json')
         if i < 60:
             # _info enforces the fundamentals cache TTL and refreshes expired entries.
-            info = _info(ysym, str(Path(cache_dir) / 'fundamentals'))
+            info = _info(ysym, str(Path(cache_dir) / 'fundamentals'), cache_ttl_hours=fundamentals_cache_ttl_hours)
         elif p.exists():
             try:
                 info = json.loads(p.read_text(encoding='utf-8'))
