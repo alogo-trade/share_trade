@@ -117,7 +117,7 @@ class Settings:
 
     # Configurable pre-LLM decision provider. RULES remains the safe default.
     decision_provider: str = os.getenv("DECISION_PROVIDER", "RULES").strip().upper()
-    decision_shadow_mode: bool = os.getenv("DECISION_SHADOW_MODE", "false").lower() in {"1", "true", "yes"}
+    decision_shadow_mode: bool = os.getenv("DECISION_SHADOW_MODE", "true").lower() in {"1", "true", "yes"}
     jev_model: str = os.getenv("JEV_MODEL", "typesafe/jev-1.14")
     jev_timeout_seconds: int = int(os.getenv("JEV_TIMEOUT_SECONDS", "25"))
     jev_pass_probability_threshold: float = float(os.getenv("JEV_PASS_PROBABILITY_THRESHOLD", "0.80"))
