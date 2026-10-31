@@ -408,6 +408,7 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
                 return info
             break
         except Exception as exc:
+            last_error = exc
             message = str(exc)
             if 'Too Many Requests' in message or 'RateLimit' in message or '429' in message:
                 CB.trip(message)
