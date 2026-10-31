@@ -80,3 +80,31 @@ def test_stale_cache_is_not_rankable_even_when_market_date_looks_recent():
     assert rows[0]["ranking_score"] is None
     assert rows[0]["data_quality_status"] == "STALE_OR_UNKNOWN"
 
+
+
+def test_history_download_uses_bounded_request_timeout(tmp_path, monkeypatch):
+    import stock_etf.market as market
+
+    calls = []
+
+    class ClosedCircuitBreaker:
+        open = False
+
+    def timed_out_download(*args, **kwargs):
+        calls.append(kwargs)
+        raise TimeoutError("simulated request timeout")
+
+    monkeypatch.setattr(market, "CB", ClosedCircuitBreaker())
+    monkeypatch.setattr(market.yf, "download", timed_out_download)
+
+    result = market._history_batch(
+        ["CONFIPET.NS"],
+        batch_size=1,
+        retries=0,
+        cache_dir=str(tmp_path),
+        request_timeout_seconds=15,
+    )
+
+    assert result == {}
+    assert len(calls) == 1
+    assert calls[0]["timeout"] == 15

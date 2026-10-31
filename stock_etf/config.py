@@ -78,8 +78,16 @@ class Settings:
     yahoo_history_batch_size: int = int(
         os.getenv(
             "YAHOO_HISTORY_BATCH_SIZE",
-            "80",
+            "40",
         )
+    )
+
+    yahoo_request_timeout_seconds: int = int(
+        os.getenv("YAHOO_REQUEST_TIMEOUT_SECONDS", "15")
+    )
+
+    yahoo_liquidity_batch_size: int = int(
+        os.getenv("YAHOO_LIQUIDITY_BATCH_SIZE", "50")
     )
 
     yahoo_cooldown_seconds: int = int(

@@ -67,7 +67,7 @@ def _technicals(df):
     return {'price':last,'return_1w_pct':ret(5),'return_1m_pct':ret(21),'return_3m_pct':ret(63),'return_6m_pct':ret(126),'return_1y_pct':ret(252),'cagr_3y_pct':_cagr(c,3),'sma20':sma20,'sma50':sma50,'sma200':sma200,
             'distance_sma20_pct':_safe_float((last/sma20-1)*100) if last is not None and sma20 else None,'distance_sma50_pct':_safe_float((last/sma50-1)*100) if last is not None and sma50 else None,'distance_sma200_pct':_safe_float((last/sma200-1)*100) if last is not None and sma200 else None,'rsi14':_rsi(c),'atr14':atr,'atr_pct':_safe_float(atr/last*100) if atr is not None and last not in (None,0) else None,'volatility_pct':_annualized_vol(c),'max_drawdown_pct':_max_drawdown(c),'volume_ratio_20d':_safe_float(v.iloc[-1]/avg20) if avg20 not in (None,0) else None,'avg_volume_20d':avg20,'high_52w':_safe_float(c.tail(252).max()),'low_52w':_safe_float(c.tail(252).min()),'data_points':int(len(c)),'last_date':str(c.index[-1].date())}
 
-def _history_batch(symbols, period='3y', batch_size=80, retries=2, cache_dir='cache/market', cache_ttl_hours=12):
+def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='cache/market', cache_ttl_hours=12, request_timeout_seconds=15):
     """
     Load historical prices with a bounded cache lifetime.
 
@@ -136,7 +136,7 @@ def _history_batch(symbols, period='3y', batch_size=80, retries=2, cache_dir='ca
             try:
                 data = yf.download(
                     batch, period=period, auto_adjust=True, actions=False,
-                    progress=False, threads=False, group_by='ticker'
+                    progress=False, threads=False, group_by='ticker', timeout=request_timeout_seconds
                 )
                 if data is None or data.empty:
                     raise RuntimeError('empty Yahoo batch response')
@@ -255,14 +255,14 @@ def market_data_quality_summary(records):
         'cache_age_is_not_market_data_age': True,
         'note': 'Market-data freshness is determined by last_date and the decision gate. Cache age measures local cache refresh age only.'
     }
-def liquidity_screen(universe,max_instruments=250,workers=3):
+def liquidity_screen(universe,max_instruments=250,workers=3,batch_size=50,request_timeout_seconds=15):
     if len(universe)<=max_instruments:return universe
     symbols=[yf_symbol(x) for x in universe]; scores={}
     try:
-        for start in range(0,len(symbols),200):
-            batch=symbols[start:start+200]
+        for start in range(0,len(symbols),batch_size):
+            batch=symbols[start:start+batch_size]
             if CB.open: break
-            try:data=yf.download(batch,period='1mo',interval='1d',auto_adjust=True,progress=False,threads=False,group_by='ticker')
+            try:data=yf.download(batch,period='1mo',interval='1d',auto_adjust=True,progress=False,threads=False,group_by='ticker',timeout=request_timeout_seconds)
             except Exception as exc:
                 if 'Too Many Requests' in str(exc) or '429' in str(exc):CB.trip(exc)
                 continue

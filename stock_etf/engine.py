@@ -115,6 +115,8 @@ def run(
             universe,
             settings.analysis_universe_limit,
             settings.max_workers,
+        batch_size=settings.yahoo_liquidity_batch_size,
+        request_timeout_seconds=settings.yahoo_request_timeout_seconds,
         )
 
     logger.info(
@@ -139,6 +141,8 @@ def run(
         settings.history_period,
         settings.max_workers,
         settings.cache_dir,
+        history_batch_size=settings.yahoo_history_batch_size,
+        request_timeout_seconds=settings.yahoo_request_timeout_seconds,
     )
 
     # ------------------------------------------------------------------
