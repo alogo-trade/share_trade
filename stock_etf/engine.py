@@ -206,6 +206,7 @@ def run(
     # evaluate candidates that have already passed those checks.
     rules_config = DecisionRulesConfig(
         max_data_age_days=settings.decision_max_data_age_days,
+        max_market_sessions_age=settings.decision_max_market_sessions_age,
         min_data_confidence=settings.decision_min_data_confidence,
         min_observations_short=settings.decision_min_observations_short,
         min_observations_mid=settings.decision_min_observations_mid,
