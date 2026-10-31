@@ -40,12 +40,13 @@ def test_new_listing_does_not_get_actionable_score():
 
 def test_position_sizing_only_allocates_passed_setup_rows():
     rows = [
-        {"symbol": "PASS", "ranking_score": 80, "decision_verdict": "PASS", "signal": "SETUP"},
+        {"symbol": "PASS", "ranking_score": 80, "decision_verdict": "PASS", "signal": "SETUP", "volatility_pct": 20},
         {"symbol": "AVOID", "ranking_score": 90, "decision_verdict": "REJECT", "signal": "AVOID"},
         {"symbol": "HOLD", "ranking_score": 85, "decision_verdict": "HOLD", "signal": "SETUP"},
     ]
     add_position_context(rows, {"horizon_capital_inr": 150000})
-    assert rows[0]["suggested_weight_pct"] == 100
+    assert rows[0]["suggested_weight_pct"] == 10.0
+    assert rows[0]["position_sizing_status"] == "RISK_BUDGETED"
     assert rows[1]["suggested_weight_pct"] == 0
     assert rows[2]["suggested_weight_pct"] == 0
 
@@ -174,4 +175,27 @@ def test_market_metadata_uses_known_exchange_currency_and_preserves_provider_uni
     assert provider_metadata["market_cap_inr"] is None
     assert provider_metadata["sector"] == "Technology"
     assert provider_metadata["sector_metadata_source"] == "YAHOO_FINANCE"
+
+
+def test_position_sizing_uses_volatility_not_ranking_score():
+    rows = [
+        {"symbol": "LOWVOL", "ranking_score": 60, "decision_verdict": "PASS", "signal": "SETUP", "atr_pct": 2.0},
+        {"symbol": "HIGHVOL", "ranking_score": 99, "decision_verdict": "PASS", "signal": "SETUP", "atr_pct": 8.0},
+    ]
+    add_position_context(rows, {"horizon_capital_inr": 100000})
+    assert rows[0]["suggested_weight_pct"] == 10.0
+    assert rows[1]["suggested_weight_pct"] == 3.12
+    assert rows[0]["suggested_weight_pct"] > rows[1]["suggested_weight_pct"]
+
+
+def test_position_sizing_caps_total_deployment_and_skips_missing_volatility():
+    rows = [
+        {"symbol": f"RISK{i}", "decision_verdict": "PASS", "signal": "SETUP", "atr_pct": 1.0}
+        for i in range(20)
+    ]
+    rows.append({"symbol": "NOVOL", "decision_verdict": "PASS", "signal": "SETUP"})
+    add_position_context(rows, {"horizon_capital_inr": 100000, "max_deployment_pct": 50})
+    assert round(sum(row["suggested_weight_pct"] for row in rows), 2) == 50.0
+    assert rows[-1]["suggested_weight_pct"] == 0.0
+    assert rows[-1]["position_sizing_status"] == "INSUFFICIENT_VOLATILITY_DATA"
 
