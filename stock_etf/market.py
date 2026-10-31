@@ -109,9 +109,14 @@ def _history_batch(symbols, period='3y', batch_size=80, retries=2, cache_dir='ca
         frame = stale.get(symbol)
         if frame is not None and symbol not in out:
             frame.attrs['cache_status'] = 'STALE_CACHE'
-            frame.attrs['cache_age_hours'] = round(
-                max(0.0, (now - (cache / (symbol.replace('/', '_') + '.parquet')).stat().st_mtime) / 3600.0), 2
-            )
+            cache_path = cache / (symbol.replace('/', '_') + '.parquet')
+            try:
+                age_hours = max(0.0, (now - cache_path.stat().st_mtime) / 3600.0)
+            except OSError:
+                # Cache may be evicted between initial read and fallback.
+                logger.warning('Stale cache file disappeared for %s; skipping fallback.', symbol)
+                return
+            frame.attrs['cache_age_hours'] = round(age_hours, 2)
             frame.attrs['data_source'] = 'Yahoo Finance (stale cache fallback)'
             out[symbol] = frame
 
