@@ -379,7 +379,7 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
         if fallback.get("__dividend_history_status") == "FETCHED":
             fallback["__dividend_history_status"] = "STALE_CACHE"
         else:
-            fallback.setdefault("__dividend_history_status", "UNAVAILABLE")
+            fallback.setdefault("__dividend_history_status", "CIRCUIT_BREAKER_OPEN")
         fallback.setdefault("__dividend_history_error", "Yahoo circuit breaker is active; no refresh attempted")
         return fallback
     last_error = None
@@ -398,6 +398,9 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
                 info["__dividend_history_status"] = "FETCHED"
                 info["__dividend_history_error"] = None
             except Exception as dividend_exc:
+                dividend_message = str(dividend_exc)
+                if 'Too Many Requests' in dividend_message or 'RateLimit' in dividend_message or '429' in dividend_message:
+                    CB.trip(dividend_message)
                 logger.warning("Dividend history unavailable for %s: %s", ticker, dividend_exc)
                 info["__dividend_history"] = None
                 info["__dividend_history_status"] = "FETCH_FAILED"
