@@ -28,10 +28,23 @@ def _pct(x):
     v=_safe_float(x); return None if v is None else v*100
 
 def _yield_pct(x):
-    """Normalise Yahoo yield values supplied as either ratios or percentages."""
-    v=_safe_float(x)
-    if v is None: return None
-    return v*100 if abs(v)<=1 else v
+    """Convert Yahoo Finance's fractional dividendYield to percentage points."""
+    v = _safe_float(x)
+    if v is None or v < 0 or v > 1:
+        return None
+    return round(v * 100, 2)
+
+
+def _price_discontinuity(close, threshold_pct=50.0):
+    """Return the largest absolute one-session close move when it breaches threshold."""
+    prices = pd.to_numeric(close, errors="coerce").dropna()
+    if len(prices) < 2:
+        return None
+    returns = prices.pct_change().replace([np.inf, -np.inf], np.nan).dropna()
+    if returns.empty:
+        return None
+    largest = float(returns.abs().max() * 100)
+    return round(largest, 2) if largest >= threshold_pct else None
 
 def _max_drawdown(close):
     s=close.dropna()
@@ -272,6 +285,8 @@ def _merge_record(row, df, info):
             "exchange": exchange, "data_confidence": 0, "error": "no valid close data",
         }
 
+    close_series = pd.to_numeric(df["Close"], errors="coerce").dropna()
+    discontinuity_pct = _price_discontinuity(close_series)
     tech = _technicals(df)
     yahoo_sector = _metadata_text(info.get("sector"))
     universe_sector = _metadata_text(row.get("sector") or row.get("sector_hint"))
@@ -311,6 +326,8 @@ def _merge_record(row, df, info):
         "data_source": df.attrs.get("data_source", "Yahoo Finance"),
         "cache_status": df.attrs.get("cache_status", "UNKNOWN"),
         "cache_age_hours": df.attrs.get("cache_age_hours"),
+        "data_integrity_status": "QUARANTINED" if discontinuity_pct is not None else "PASS",
+        "price_discontinuity_pct": discontinuity_pct,
         "beta": _safe_float(info.get("beta")),
         "pe": _safe_float(info.get("trailingPE")),
         "forward_pe": _safe_float(info.get("forwardPE")),
@@ -337,7 +354,19 @@ def _merge_record(row, df, info):
     required = ["price", "return_1w_pct", "return_1m_pct", "volatility_pct", "max_drawdown_pct"]
     completeness = sum(rec.get(key) is not None for key in required) / len(required)
     sample_coverage = min(int(rec.get("data_points") or 0) / 126, 1.0)
-    rec["data_confidence"] = round((0.6 * completeness + 0.4 * sample_coverage) * 100)
+    rec["technical_data_confidence"] = round((0.6 * completeness + 0.4 * sample_coverage) * 100)
+    rec["data_confidence"] = rec["technical_data_confidence"]  # Backward-compatible alias.
+    fundamental_fields = ["sector", "industry", "market_cap", "pe", "roe_pct", "revenue_growth_pct"]
+    fundamental_coverage = sum(rec.get(key) is not None for key in fundamental_fields) / len(fundamental_fields)
+    rec["fundamental_data_confidence"] = round(fundamental_coverage * 100)
+    rec["fundamental_data_coverage"] = {
+        "available": sum(rec.get(key) is not None for key in fundamental_fields),
+        "total": len(fundamental_fields),
+        "missing": [key for key in fundamental_fields if rec.get(key) is None],
+    }
+    rec["overall_data_confidence"] = round(
+        0.7 * rec["technical_data_confidence"] + 0.3 * rec["fundamental_data_confidence"]
+    )
     return rec
 
 def market_data_quality_summary(records):
