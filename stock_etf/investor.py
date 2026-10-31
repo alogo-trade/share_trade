@@ -92,9 +92,6 @@ def add_position_context(
         if row.get("ranking_score") is not None
     ]
 
-    if not eligible:
-        return
-
     weights = []
 
     for row in eligible:

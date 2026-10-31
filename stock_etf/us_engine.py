@@ -11,6 +11,17 @@ import yfinance as yf
 logger = logging.getLogger("stock_etf.us")
 
 
+def _normalise_yield_pct(value: Any) -> float | None:
+    """Yahoo may expose dividend yield as a ratio or as a percentage."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(number):
+        return None
+    return round(number * 100 if abs(number) <= 1 else number, 2)
+
+
 def _read_rows(path: str) -> list[dict[str, Any]]:
     source = Path(path)
     if not source.exists():
@@ -148,9 +159,7 @@ def run_us_research(
                 }.get(key, key)
                 row[output_key] = info.get(key)
             if info.get("dividendYield") is not None:
-                row["dividend_yield_pct"] = round(
-                    float(info["dividendYield"]) * 100, 2
-                )
+                row["dividend_yield_pct"] = _normalise_yield_pct(info["dividendYield"])
             one, six = row.get("change_1m_pct"), row.get("change_6m_pct")
             if one is not None or six is not None:
                 score = (
