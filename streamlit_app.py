@@ -464,8 +464,8 @@ def main():
     st.caption(
         "Dynamic NSE universe → liquidity screen → "
         "market data → deterministic ranking → "
-        "portfolio-aware ranking → multi-source news → "
-        "challenge review."
+        "portfolio-aware ranking → decision-tree verification → "
+        "LLM challenge review."
     )
 
     # --------------------------------------------------------------
@@ -998,6 +998,7 @@ def main():
                     "Signal": x.get(
                         "signal"
                     ),
+                    "Decision gate": x.get("decision_verdict"),
                     "Suggested weight %": x.get(
                         "suggested_weight_pct"
                     ),
@@ -1135,6 +1136,8 @@ def main():
                 st.write(
                     "**Signal:**",
                     row.get("signal"),
+                    " · **Decision gate:**",
+                    row.get("decision_verdict", "not evaluated"),
                     " · **Data confidence:**",
                     fmt(
                         row.get(

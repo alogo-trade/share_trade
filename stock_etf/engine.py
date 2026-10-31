@@ -212,10 +212,8 @@ def run(
         profile,
     )
 
-    add_position_context(
-        shortlist,
-        profile,
-    )
+    # shortlist contains references to ranked records, so it already
+    # carries the portfolio weights calculated across the full ranked set.
 
     # ------------------------------------------------------------------
     # News
@@ -359,7 +357,7 @@ def run(
 
     result = {
         "metadata": {
-            "engine_version": "stock-etf-v9-portfolio-aware",
+            "engine_version": "stock-etf-v10-decision-gated",
 
             "run_at_utc": datetime.now(
                 timezone.utc
