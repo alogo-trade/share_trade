@@ -30,7 +30,7 @@ def test_us_research_emits_normalized_dividend_yield_from_yahoo(tmp_path, monkey
 
     candidates = tmp_path / "candidates.json"
     candidates.write_text(json.dumps({"instruments": [
-        {"symbol": "YIELD", "type": "STOCK", "zerodha_eligible": False}
+        {"symbol": "YIELD", "type": "STOCK", "category": "Semiconductors", "zerodha_eligible": False}
     ]}), encoding="utf-8")
 
     class FakeTicker:
@@ -53,7 +53,12 @@ def test_us_research_emits_normalized_dividend_yield_from_yahoo(tmp_path, monkey
         limit=1,
     )
 
-    assert result["instruments"][0]["dividend_yield_pct"] == 0.6
+    instrument = result["instruments"][0]
+    assert instrument["dividend_yield_pct"] == 0.6
+    assert instrument["currency"] == "USD"
+    assert instrument["price_currency"] == "USD"
+    assert instrument["sector"] == "Information Technology"
+    assert instrument["sector_metadata_source"] == "CURATED_CATEGORY"
 
 
 def test_verified_loader_requires_explicit_eligibility_and_valid_type(tmp_path):
