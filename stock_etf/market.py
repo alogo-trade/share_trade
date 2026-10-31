@@ -30,31 +30,50 @@ def _pct(x):
 MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT = 15.0
 
 
-def _yield_pct(x):
-    """Convert Yahoo's fractional dividendYield, rejecting implausible outputs."""
-    v = _safe_float(x)
-    if v is None or v < 0 or v > 1:
-        return None
-    pct = round(v * 100, 2)
-    return pct if pct <= MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT else None
+def _trailing_dividend_yield_pct(dividend_history, price, as_of=None):
+    """Calculate cash dividends paid over the trailing 365 days / current price."""
+    current_price = _safe_float(price)
+    if dividend_history is None or current_price is None or current_price <= 0:
+        return None, "UNVERIFIED_HISTORY_OR_PRICE"
+    try:
+        end = pd.Timestamp(as_of) if as_of is not None else pd.Timestamp.utcnow().tz_localize(None)
+        end = end.tz_localize(None) if end.tzinfo is not None else end
+        start = end - pd.Timedelta(days=365)
+        payments = []
+        for item in dividend_history:
+            if isinstance(item, dict):
+                event_date, amount = item.get("date"), item.get("amount")
+            else:
+                event_date, amount = item
+            event_date = pd.Timestamp(event_date)
+            event_date = event_date.tz_localize(None) if event_date.tzinfo is not None else event_date
+            amount = _safe_float(amount)
+            if amount is not None and amount > 0 and start < event_date <= end:
+                payments.append(amount)
+        if not payments:
+            return 0.0, "NO_DIVIDENDS_IN_TRAILING_365D"
+        result = round(sum(payments) / current_price * 100, 2)
+        if result > MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT:
+            return None, "HIGH_YIELD_REVIEW"
+        return result, "VERIFIED_TTM_CASH_DIVIDENDS"
+    except Exception:
+        return None, "INVALID_DIVIDEND_HISTORY"
 
 
-def _yield_metadata(value):
-    raw = _safe_float(value)
-    normalized = _yield_pct(value)
-    if raw is None:
-        status = "MISSING"
-    elif raw < 0 or raw > 1:
-        status = "INVALID_PROVIDER_VALUE"
-    elif normalized is None:
-        status = "IMPLAUSIBLE_YIELD"
-    else:
-        status = "VALID"
+def _yield_metadata(provider_value, dividend_history=None, price=None, as_of=None):
+    """Publish only a TTM yield derived from dividend events and a matching price."""
+    raw = _safe_float(provider_value)
+    normalized, status = _trailing_dividend_yield_pct(
+        dividend_history, price, as_of=as_of
+    )
     return {
+        "dividend_yield_provider_raw": raw,
+        "dividend_yield_provider_unit": "YAHOO_UNIT_UNVERIFIED",
         "dividend_yield_raw": raw,
-        "dividend_yield_raw_unit": "YAHOO_FRACTION",
+        "dividend_yield_raw_unit": "YAHOO_UNIT_UNVERIFIED",
         "dividend_yield_pct": normalized,
         "dividend_yield_status": status,
+        "dividend_yield_method": "TRAILING_365D_DIVIDENDS_OVER_LATEST_CLOSE",
     }
 
 
@@ -260,7 +279,7 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
         try:
             cached = json.loads(path.read_text(encoding='utf-8'))
             age_hours = max(0.0, (time.time() - path.stat().st_mtime) / 3600.0)
-            if age_hours <= cache_ttl_hours:
+            if age_hours <= cache_ttl_hours and "__dividend_history" in cached:
                 return cached
         except Exception:
             cached = None
@@ -268,7 +287,17 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
         return cached or {}
     for attempt in range(2):
         try:
-            info = yf.Ticker(ticker).info or {}
+            instrument = yf.Ticker(ticker)
+            info = instrument.info or {}
+            try:
+                dividend_series = instrument.dividends
+                info["__dividend_history"] = [
+                    {"date": str(event_date), "amount": float(amount)}
+                    for event_date, amount in (dividend_series.items() if dividend_series is not None else [])
+                ]
+            except Exception as dividend_exc:
+                logger.warning("Dividend history unavailable for %s: %s", ticker, dividend_exc)
+                info["__dividend_history"] = None
             if info:
                 path.write_text(json.dumps(info, default=str), encoding='utf-8')
                 return info
@@ -356,7 +385,12 @@ def _merge_record(row, df, info):
         "forward_pe": _safe_float(info.get("forwardPE")),
         "pb": _safe_float(info.get("priceToBook")),
         "ev_ebitda": _safe_float(info.get("enterpriseToEbitda")),
-        **_yield_metadata(info.get("dividendYield")),
+        **_yield_metadata(
+            info.get("dividendYield"),
+            info.get("__dividend_history"),
+            tech.get("price"),
+            as_of=close_series.index[-1],
+        ),
         "roe_pct": _pct(info.get("returnOnEquity")),
         "roa_pct": _pct(info.get("returnOnAssets")),
         "profit_margin_pct": _pct(info.get("profitMargins")),
