@@ -137,6 +137,8 @@ def verify_candidates(
         )
         response.raise_for_status()
         body = response.json()
+        if not isinstance(body, dict):
+            raise ValueError("Jev response must be a JSON object.")
         answers = body.get("answers")
         if not isinstance(answers, dict):
             raise ValueError("Jev response has no answers object.")
