@@ -81,6 +81,7 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
     cache.mkdir(parents=True, exist_ok=True)
     missing = []
     now = time.time()
+    cache_started = time.monotonic()
 
     for symbol in symbols:
         path = cache / (symbol.replace('/', '_') + '.parquet')
@@ -120,7 +121,12 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
             frame.attrs['data_source'] = 'Yahoo Finance (stale cache fallback)'
             out[symbol] = frame
 
+    logger.info(
+        "History cache scan completed in %.1fs: total=%d, fresh=%d, expired_or_missing=%d.",
+        time.monotonic() - cache_started, len(symbols), len(out), len(missing)
+    )
     if not missing:
+        logger.info("Historical data fully served from cache; no Yahoo history requests needed.")
         return out
 
     if CB.open:
@@ -131,6 +137,8 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
 
     def download_isolated(group):
         """Download a group, recursively splitting failed batches to isolate bad tickers."""
+        request_started = time.monotonic()
+        logger.info("Yahoo history request started: %d symbols (first=%s, last=%s).", len(group), group[0], group[-1])
         try:
             data = yf.download(
                 group, period=period, auto_adjust=True, actions=False,
@@ -150,12 +158,15 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
                 except Exception as exc:
                     logger.warning('Yahoo returned no usable history for %s: %s', symbol, exc)
             missing_symbols = [symbol for symbol in group if symbol not in frames]
+            logger.info("Yahoo history request returned in %.1fs: usable=%d/%d.", time.monotonic() - request_started, len(frames), len(group))
             if missing_symbols and len(group) > 1:
                 logger.warning(
                     'Yahoo returned incomplete batch data; isolating %d missing symbols.',
                     len(missing_symbols)
                 )
                 frames.update(download_isolated(missing_symbols))
+            if missing_symbols and len(group) == 1:
+                logger.warning("Yahoo returned no usable history for isolated symbol %s.", group[0])
             return frames
         except Exception as exc:
             message = str(exc)
@@ -177,8 +188,12 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
             left.update(right)
             return left
 
-    for start in range(0, len(missing), batch_size):
+    batch_size = max(1, int(batch_size))
+    total_batches = (len(missing) + batch_size - 1) // batch_size
+    for batch_index, start in enumerate(range(0, len(missing), batch_size), start=1):
         batch = missing[start:start + batch_size]
+        batch_started = time.monotonic()
+        logger.info("Historical batch %d/%d started: %d symbols.", batch_index, total_batches, len(batch))
         refreshed = download_isolated(batch)
         for symbol, frame in refreshed.items():
             frame.attrs['cache_status'] = 'REFRESHED'
@@ -189,7 +204,7 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
                 frame.to_parquet(cache / (symbol.replace('/', '_') + '.parquet'))
             except Exception as exc:
                 logger.debug('Could not cache %s history: %s', symbol, exc)
-        logger.info('Yahoo batch history: %d/%d symbols refreshed.', len(refreshed), len(batch))
+        logger.info('Historical batch %d/%d completed in %.1fs: refreshed=%d/%d, available_with_cache=%d.', batch_index, total_batches, time.monotonic() - batch_started, len(refreshed), len(batch), len(out))
         for symbol in batch:
             if symbol not in refreshed:
                 retain_stale(symbol)
@@ -409,16 +424,23 @@ def liquidity_screen(
     )
     return chosen
 
-def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache',history_cache_ttl_hours=12,fundamentals_cache_ttl_hours=168):
-    symbols=[yf_symbol(x) for x in universe]; histories=_history_batch(symbols,history_period,batch_size=80,cache_dir=str(Path(cache_dir)/'market'),cache_ttl_hours=history_cache_ttl_hours)
+def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache',history_cache_ttl_hours=12,fundamentals_cache_ttl_hours=168,history_batch_size=40,request_timeout_seconds=15):
+    started=time.monotonic()
+    logger.info('Market data stage started: instruments=%d, history_period=%s, batch_size=%d, timeout=%ss.',len(universe),history_period,history_batch_size,request_timeout_seconds)
+    symbols=[yf_symbol(x) for x in universe]
+    histories=_history_batch(symbols,history_period,batch_size=history_batch_size,cache_dir=str(Path(cache_dir)/'market'),cache_ttl_hours=history_cache_ttl_hours,request_timeout_seconds=request_timeout_seconds)
+    logger.info('Historical price stage completed: available=%d/%d.',len(histories),len(symbols))
     records=[]
     # Fundamentals are expensive and rate-limited. Use cached info first; otherwise fetch only the first 60 liquid candidates.
     for i,row in enumerate(universe):
         ysym=yf_symbol(row); info={}
         p=Path(cache_dir)/'fundamentals'/(ysym.replace('/','_')+'.json')
         if i < 60:
-            # _info enforces the fundamentals cache TTL and refreshes expired entries.
+            # Fundamentals are limited to the first 60 liquid candidates.
+            info_started=time.monotonic()
+            logger.info('Fundamentals lookup %d/60 started: %s.',i+1,ysym)
             info = _info(ysym, str(Path(cache_dir) / 'fundamentals'), cache_ttl_hours=fundamentals_cache_ttl_hours)
+            logger.info('Fundamentals lookup %d/60 completed in %.1fs: %s (%d fields).',i+1,time.monotonic()-info_started,ysym,len(info))
         elif p.exists():
             try:
                 info = json.loads(p.read_text(encoding='utf-8'))
@@ -426,5 +448,6 @@ def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache',h
                 info = {}
         rec=_merge_record(row,histories.get(ysym),info)
         records.append(rec)
-        if (i+1)%25==0 or i+1==len(universe):logger.info('Market data progress: %d/%d',i+1,len(universe))
+        if (i+1)%10==0 or i+1==len(universe):logger.info('Market record progress: %d/%d (elapsed %.1fs).',i+1,len(universe),time.monotonic()-started)
+    logger.info('Market data stage completed in %.1fs: records=%d, with_history=%d.',time.monotonic()-started,len(records),sum(1 for row in records if not row.get('error')))
     return records
