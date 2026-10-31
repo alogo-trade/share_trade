@@ -376,7 +376,22 @@ def apply_portfolio_context(
             "ranking_score"
         )
 
+        # Ownership is a fact from the broker holdings file, not a
+        # consequence of having a market score. Preserve it for every
+        # instrument, including rows with missing/stale market data.
+        holding = holdings.get(symbol)
+        current_value = _holding_value(holding)
+        record["already_owned"] = holding is not None
+        record["portfolio_current_value"] = round(current_value, 2)
+        record["portfolio_pnl_pct"] = _holding_pnl_pct(holding)
+        if holding:
+            record["portfolio_context"] = "EXISTING_POSITION"
+        elif record.get("portfolio_context") is None:
+            record["portfolio_context"] = "NEW_EXPOSURE"
+
         if raw_score is None:
+            record.setdefault("portfolio_position_pct", 0.0)
+            record.setdefault("portfolio_sector_exposure_pct", 0.0)
             continue
 
         try:
@@ -388,14 +403,6 @@ def apply_portfolio_context(
             ValueError,
         ):
             continue
-
-        holding = holdings.get(
-            symbol
-        )
-
-        current_value = _holding_value(
-            holding
-        )
 
         position_pct = (
             current_value
