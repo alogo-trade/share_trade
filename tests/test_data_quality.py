@@ -6,9 +6,11 @@ from stock_etf.market import _yield_pct
 from stock_etf.portfolio import calculate_sector_exposure
 
 
-def test_dividend_yield_ratio_and_percent_are_normalised():
+def test_yahoo_dividend_yield_ratio_is_normalised_and_invalid_values_rejected():
     assert _yield_pct(0.0602) == 6.02
-    assert _yield_pct(6.02) == 6.02
+    assert _yield_pct(0.006) == 0.6
+    assert _yield_pct(6.02) is None
+    assert _yield_pct(-0.01) is None
     assert _yield_pct(None) is None
 
 
@@ -199,3 +201,41 @@ def test_position_sizing_caps_total_deployment_and_skips_missing_volatility():
     assert rows[-1]["suggested_weight_pct"] == 0.0
     assert rows[-1]["position_sizing_status"] == "INSUFFICIENT_VOLATILITY_DATA"
 
+
+
+def test_large_one_session_price_move_is_detected_for_quarantine():
+    import pandas as pd
+    from stock_etf.market import _price_discontinuity
+
+    prices = pd.Series([100.0] * 30 + [20.0] + [20.0] * 10)
+    assert _price_discontinuity(prices) == 80.0
+    assert _price_discontinuity(pd.Series([100.0, 101.0, 99.0, 102.0])) is None
+
+
+def test_quarantined_price_history_cannot_pass_decision_gate():
+    from stock_etf.decision_model import evaluate_candidate
+
+    row = {
+        "symbol": "BROKEN", "signal": "SETUP", "ranking_score": 90,
+        "data_points": 500, "data_confidence": 100, "last_date": "2026-10-30",
+        "data_integrity_status": "QUARANTINED", "price_discontinuity_pct": 80.0,
+    }
+    result = evaluate_candidate(row, "SHORT_TERM", as_of=date(2026, 10, 31))
+    assert result["verdict"] == "REJECT"
+    assert "discontinuity" in result["reasons"][0].lower()
+
+
+def test_fundamental_coverage_is_reported_separately_from_technical_confidence():
+    import pandas as pd
+    from stock_etf.market import _merge_record
+
+    frame = pd.DataFrame(
+        {"Open": [99.0, 100.0], "High": [101.0, 102.0], "Low": [98.0, 99.0],
+         "Close": [100.0, 101.0], "Volume": [1000, 1100]},
+        index=pd.to_datetime(["2026-10-29", "2026-10-30"]),
+    )
+    row = _merge_record({"symbol": "ABC", "type": "STOCK", "exchange": "NSE"}, frame, {})
+    assert row["technical_data_confidence"] == row["data_confidence"]
+    assert row["fundamental_data_confidence"] == 0
+    assert row["overall_data_confidence"] < row["technical_data_confidence"]
+    assert row["fundamental_data_coverage"]["missing"]
