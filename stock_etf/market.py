@@ -149,6 +149,13 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
                             frames[symbol] = frame
                 except Exception as exc:
                     logger.warning('Yahoo returned no usable history for %s: %s', symbol, exc)
+            missing_symbols = [symbol for symbol in group if symbol not in frames]
+            if missing_symbols and len(group) > 1:
+                logger.warning(
+                    'Yahoo returned incomplete batch data; isolating %d missing symbols.',
+                    len(missing_symbols)
+                )
+                frames.update(download_isolated(missing_symbols))
             return frames
         except Exception as exc:
             message = str(exc)
