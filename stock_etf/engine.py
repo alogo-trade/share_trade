@@ -29,6 +29,37 @@ from .us_engine import run_us_research
 
 logger = logging.getLogger("stock_etf")
 
+def _dividend_yield_coverage(records: list[dict]) -> dict:
+    """Summarize yield calculation and history-retrieval coverage for the NSE universe."""
+    yield_counts = {}
+    history_counts = {}
+    failure_samples = []
+    for row in records:
+        yield_status = str(row.get("dividend_yield_status") or "MISSING")
+        history_status = str(row.get("dividend_yield_history_status") or "UNAVAILABLE")
+        yield_counts[yield_status] = yield_counts.get(yield_status, 0) + 1
+        history_counts[history_status] = history_counts.get(history_status, 0) + 1
+        if history_status != "FETCHED":
+            failure_samples.append({
+                "symbol": row.get("symbol"),
+                "history_status": history_status,
+                "reason": row.get("dividend_yield_history_error"),
+            })
+    summary = {
+        "instrument_count": len(records),
+        "yield_status_counts": yield_counts,
+        "history_status_counts": history_counts,
+        "history_fetch_failure_count": history_counts.get("FETCH_FAILED", 0),
+        "history_unavailable_count": history_counts.get("UNAVAILABLE", 0),
+        "history_failure_samples": failure_samples[:30],
+    }
+    logger.info(
+        "Dividend-yield coverage: instruments=%d yield_statuses=%s history_statuses=%s",
+        len(records), yield_counts, history_counts,
+    )
+    return summary
+
+
 
 def run(
     horizon: str = "LONG_TERM",
@@ -527,6 +558,7 @@ def run(
 
         "investor_profile": profile,
         "us_research": us_research,
+        "dividend_yield_coverage": _dividend_yield_coverage(records),
         "decision_model": decision_summary,
 
         # --------------------------------------------------------------
