@@ -11,11 +11,13 @@ import requests
 logger = logging.getLogger("stock_etf.jev")
 DEFAULT_MODEL = "typesafe/jev-1.14"
 DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
-CRITERIA = {
-    "PASS": "Coherent setup supported by supplied facts, suitable for further research only.",
-    "REVIEW": "Mixed, incomplete, extended, or inconsistent evidence requiring review.",
-    "REJECT": "Material contradiction or clearly unsuitable setup for further research.",
-}
+CRITERIA = [
+    "PASS: coherent setup supported by supplied facts, suitable for further research only.",
+    "REVIEW: mixed, incomplete, extended, or inconsistent evidence requiring review.",
+    "REJECT: material contradiction or clearly unsuitable setup for further research.",
+]
+CHOICES = {"PASS", "REVIEW", "REJECT"}
+
 
 
 def _finite(value: Any) -> float | None:
@@ -130,7 +132,7 @@ def verify_candidates(
         probabilities = answer.get("probabilities")
         confidence = _finite(answer.get("confidence"))
         probability = _finite(probabilities.get(choice)) if isinstance(probabilities, dict) else None
-        if choice not in CRITERIA or confidence is None or probability is None:
+        if choice not in CHOICES or confidence is None or probability is None:
             decisions.append(_hold(row, "Jev returned an incomplete or unsupported answer.", resolved_model))
             counts["HOLD"] += 1
             continue
@@ -152,7 +154,7 @@ def verify_candidates(
         row["jev_verdict"] = choice
         row["jev_probability"] = probability
         row["jev_confidence"] = confidence
-        row["jev_reason"] = CRITERIA[choice]
+        row["jev_reason"] = next(item for item in CRITERIA if item.startswith(choice + ":"))
         row["jev_model"] = resolved_model
         counts[verdict] += 1
         decisions.append({"symbol": row.get("symbol"), "verdict": verdict,
