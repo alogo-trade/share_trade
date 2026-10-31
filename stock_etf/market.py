@@ -246,18 +246,98 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
                 time.sleep(2)
     return cached or {}
 
+def _metadata_text(value):
+    """Return a clean metadata string or None for provider placeholders."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return None if not text or text.lower() in {"none", "nan", "unknown", "n/a"} else text
+
+
 def _merge_record(row, df, info):
-    symbol=str(row.get('symbol','')).upper(); ysym=yf_symbol(row); typ=str(row.get('type','STOCK')).upper()
-    if df is None or df.empty:return {'symbol':symbol,'yf_symbol':ysym,'instrument_type':typ,'data_confidence':0,'error':'no historical data'}
-    df=df.dropna(subset=['Close'])
-    if df.empty:return {'symbol':symbol,'yf_symbol':ysym,'instrument_type':typ,'data_confidence':0,'error':'no valid close data'}
-    tech=_technicals(df)
-    rec={'symbol':symbol,'yf_symbol':ysym,'instrument_type':typ,'name':info.get('longName') or info.get('shortName') or row.get('name') or symbol,'sector':info.get('sector') or row.get('sector'),'industry':info.get('industry') or row.get('industry'),'currency':info.get('currency'),'data_source':df.attrs.get('data_source', 'Yahoo Finance'),'cache_status':df.attrs.get('cache_status', 'UNKNOWN'),'cache_age_hours':df.attrs.get('cache_age_hours'),
-         'market_cap_inr':_safe_float(info.get('marketCap')),'beta':_safe_float(info.get('beta')),'pe':_safe_float(info.get('trailingPE')),'forward_pe':_safe_float(info.get('forwardPE')),'pb':_safe_float(info.get('priceToBook')),'ev_ebitda':_safe_float(info.get('enterpriseToEbitda')),'dividend_yield_pct':_yield_pct(info.get('dividendYield')),'roe_pct':_pct(info.get('returnOnEquity')),'roa_pct':_pct(info.get('returnOnAssets')),'profit_margin_pct':_pct(info.get('profitMargins')),'operating_margin_pct':_pct(info.get('operatingMargins')),'revenue_growth_pct':_pct(info.get('revenueGrowth')),'earnings_growth_pct':_pct(info.get('earningsGrowth')),'debt_to_equity':_safe_float(info.get('debtToEquity')),'free_cashflow':_safe_float(info.get('freeCashflow')),'total_cash':_safe_float(info.get('totalCash')),'total_debt':_safe_float(info.get('totalDebt')),'fund_family':info.get('fundFamily'),'expense_ratio':_safe_float(info.get('annualReportExpenseRatio')),'tracking_error':_safe_float(info.get('trackingError')),'category':info.get('category'),'fund_holdings':_safe_float(info.get('holdingsCount')),**tech}
-    required=['price','return_1w_pct','return_1m_pct','volatility_pct','max_drawdown_pct']
-    completeness=sum(rec.get(k) is not None for k in required)/len(required)
-    sample_coverage=min(int(rec.get('data_points') or 0)/126,1.0)
-    rec['data_confidence']=round((0.6*completeness+0.4*sample_coverage)*100)
+    info = info if isinstance(info, dict) else {}
+    symbol = str(row.get("symbol", "")).upper()
+    ysym = yf_symbol(row)
+    typ = str(row.get("type", "STOCK")).upper()
+    exchange = _metadata_text(row.get("exchange"))
+    if df is None or df.empty:
+        return {
+            "symbol": symbol, "yf_symbol": ysym, "instrument_type": typ,
+            "exchange": exchange, "data_confidence": 0, "error": "no historical data",
+        }
+    df = df.dropna(subset=["Close"])
+    if df.empty:
+        return {
+            "symbol": symbol, "yf_symbol": ysym, "instrument_type": typ,
+            "exchange": exchange, "data_confidence": 0, "error": "no valid close data",
+        }
+
+    tech = _technicals(df)
+    yahoo_sector = _metadata_text(info.get("sector"))
+    universe_sector = _metadata_text(row.get("sector") or row.get("sector_hint"))
+    sector = yahoo_sector or universe_sector
+    industry = _metadata_text(info.get("industry")) or _metadata_text(row.get("industry"))
+    currency = (
+        _metadata_text(info.get("currency"))
+        or _metadata_text(row.get("currency"))
+        or ("INR" if exchange in {"NSE", "BSE"} else None)
+    )
+    market_cap = _safe_float(info.get("marketCap"))
+
+    rec = {
+        "symbol": symbol,
+        "yf_symbol": ysym,
+        "instrument_type": typ,
+        "exchange": exchange,
+        "name": info.get("longName") or info.get("shortName") or row.get("name") or symbol,
+        "sector": sector,
+        "industry": industry,
+        "sector_metadata_source": (
+            "YAHOO_FINANCE" if yahoo_sector
+            else "UNIVERSE" if universe_sector
+            else "UNAVAILABLE"
+        ),
+        "industry_metadata_source": (
+            "YAHOO_FINANCE" if _metadata_text(info.get("industry"))
+            else "UNIVERSE" if _metadata_text(row.get("industry"))
+            else "UNAVAILABLE"
+        ),
+        "currency": currency,
+        "price_currency": currency,
+        "market_cap": market_cap,
+        "market_cap_currency": currency,
+        # Retain the legacy INR-specific field only when its unit is known.
+        "market_cap_inr": market_cap if currency == "INR" else None,
+        "data_source": df.attrs.get("data_source", "Yahoo Finance"),
+        "cache_status": df.attrs.get("cache_status", "UNKNOWN"),
+        "cache_age_hours": df.attrs.get("cache_age_hours"),
+        "beta": _safe_float(info.get("beta")),
+        "pe": _safe_float(info.get("trailingPE")),
+        "forward_pe": _safe_float(info.get("forwardPE")),
+        "pb": _safe_float(info.get("priceToBook")),
+        "ev_ebitda": _safe_float(info.get("enterpriseToEbitda")),
+        "dividend_yield_pct": _yield_pct(info.get("dividendYield")),
+        "roe_pct": _pct(info.get("returnOnEquity")),
+        "roa_pct": _pct(info.get("returnOnAssets")),
+        "profit_margin_pct": _pct(info.get("profitMargins")),
+        "operating_margin_pct": _pct(info.get("operatingMargins")),
+        "revenue_growth_pct": _pct(info.get("revenueGrowth")),
+        "earnings_growth_pct": _pct(info.get("earningsGrowth")),
+        "debt_to_equity": _safe_float(info.get("debtToEquity")),
+        "free_cashflow": _safe_float(info.get("freeCashflow")),
+        "total_cash": _safe_float(info.get("totalCash")),
+        "total_debt": _safe_float(info.get("totalDebt")),
+        "fund_family": info.get("fundFamily"),
+        "expense_ratio": _safe_float(info.get("annualReportExpenseRatio")),
+        "tracking_error": _safe_float(info.get("trackingError")),
+        "category": info.get("category") or row.get("category"),
+        "fund_holdings": _safe_float(info.get("holdingsCount")),
+        **tech,
+    }
+    required = ["price", "return_1w_pct", "return_1m_pct", "volatility_pct", "max_drawdown_pct"]
+    completeness = sum(rec.get(key) is not None for key in required) / len(required)
+    sample_coverage = min(int(rec.get("data_points") or 0) / 126, 1.0)
+    rec["data_confidence"] = round((0.6 * completeness + 0.4 * sample_coverage) * 100)
     return rec
 
 def market_data_quality_summary(records):
