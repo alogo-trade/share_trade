@@ -40,6 +40,28 @@ OUT = ROOT / os.getenv(
 
 LOGDIR = ROOT / "logs"
 LOGDIR.mkdir(parents=True, exist_ok=True)
+LOG_RETENTION_COUNT = 5
+
+
+def prune_log_files(pattern: str, keep: int = LOG_RETENTION_COUNT, exclude=()):
+    """Keep only the newest timestamped logs matching a pattern."""
+    excluded = set(exclude)
+    candidates = [
+        path for path in LOGDIR.glob(pattern)
+        if path.is_file() and path.name not in excluded
+    ]
+    candidates.sort(key=lambda path: (path.stat().st_mtime, path.name), reverse=True)
+    for old_path in candidates[keep:]:
+        try:
+            old_path.unlink()
+        except OSError:
+            APP_LOGGER.warning("Could not remove expired log file %s", old_path, exc_info=True)
+
+
+def cleanup_logs():
+    """Apply bounded retention to UI and engine per-run logs."""
+    prune_log_files("ui_run_*.log")
+    prune_log_files("stock_etf_*.log", exclude={"stock_etf_engine_latest.log"})
 
 
 def configure_app_logging():
@@ -51,7 +73,7 @@ def configure_app_logging():
         handler = RotatingFileHandler(
             LOGDIR / "streamlit_app.log",
             maxBytes=10 * 1024 * 1024,
-            backupCount=10,
+            backupCount=4,
             encoding="utf-8",
         )
         handler.setFormatter(logging.Formatter(
@@ -63,6 +85,7 @@ def configure_app_logging():
 
 configure_app_logging()
 APP_LOGGER = logging.getLogger("stock_etf.ui")
+cleanup_logs()
 
 HORIZONS = {
     "SHORT_TERM": "1–2 Weeks",
@@ -337,6 +360,7 @@ def run_engine(
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     run_log_path = LOGDIR / f"ui_run_{stamp}.log"
     latest_log_path = LOGDIR / "stock_etf_latest.log"
+    cleanup_logs()
     log_tail = []
 
     APP_LOGGER.info(
