@@ -85,8 +85,6 @@ def _dividend_yield_calculation(
 
     if history_state not in {"FETCHED", "SUCCESS", "OK"}:
         status = "HISTORY_FETCH_FAILED" if history_state in {"FAILED", "FETCH_FAILED", "ERROR"} else "HISTORY_UNAVAILABLE"
-    elif current_price is None or current_price <= 0:
-        status = "INVALID_PRICE"
     elif end is None or start is None:
         status = "INVALID_AS_OF_DATE"
     else:
@@ -99,7 +97,9 @@ def _dividend_yield_calculation(
                 if amount > 0 and start < event_date <= end
             ]
             ttm_total = round(sum(amount for _, amount in ttm_events), 6)
-            if not ttm_events:
+            if current_price is None or current_price <= 0:
+                status = "INVALID_PRICE"
+            elif not ttm_events:
                 normalized = 0.0
                 status = "NO_DIVIDENDS_IN_TRAILING_365D"
             else:
@@ -115,6 +115,7 @@ def _dividend_yield_calculation(
             ttm_total = None
             status = "INVALID_DIVIDEND_HISTORY"
             history_error = history_error or str(exc)
+
     return {
         "dividend_yield_provider_raw": raw,
         "dividend_yield_provider_unit": "YAHOO_UNIT_UNVERIFIED",
@@ -409,12 +410,15 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
             else:
                 logger.warning("Yahoo fundamentals/history fetch failed for %s: %s", ticker, message)
     fallback = dict(cached or {})
-    if fallback.get("__dividend_history_status") != "FETCHED":
-        fallback["__dividend_history_status"] = "FETCH_FAILED" if last_error else "UNAVAILABLE"
-        fallback["__dividend_history_error"] = (
-            f"{type(last_error).__name__}: {last_error}"[:240]
-            if last_error else "Yahoo returned no usable fundamentals payload"
-        )
+    if last_error:
+        if fallback.get("__dividend_history_status") == "FETCHED":
+            fallback["__dividend_history_status"] = "STALE_CACHE"
+        else:
+            fallback["__dividend_history_status"] = "FETCH_FAILED"
+        fallback["__dividend_history_error"] = f"{type(last_error).__name__}: {last_error}"[:240]
+    elif fallback.get("__dividend_history_status") != "FETCHED":
+        fallback["__dividend_history_status"] = "UNAVAILABLE"
+        fallback["__dividend_history_error"] = "Yahoo returned no usable fundamentals payload"
     return fallback
 
 def _metadata_text(value):
