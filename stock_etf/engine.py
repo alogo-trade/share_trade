@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,7 +22,8 @@ from .ranking import diversify, rank
 from .retrieval import retrieve_news
 from .review import local_challenge
 from .scoring import add_scores
-from .decision_model import evaluate_candidates
+from .decision_model import DecisionRulesConfig, evaluate_candidates, rules_config_snapshot
+from .jev_verifier import DEFAULT_MODEL as DEFAULT_JEV_MODEL, verify_candidates
 from .universe import load_universe
 from .us_engine import run_us_research
 
@@ -186,8 +188,95 @@ def run(
         holdings,
     )
 
-    # Decision-tree verification runs before any candidate reaches the LLM.
-    decision_summary = evaluate_candidates(records, horizon)
+    # Deterministic rules are always the hard safety gate. Jev can only
+    # evaluate candidates that have already passed those checks.
+    rules_config = DecisionRulesConfig(
+        max_data_age_days=settings.decision_max_data_age_days,
+        min_data_confidence=settings.decision_min_data_confidence,
+        min_observations_short=settings.decision_min_observations_short,
+        min_observations_mid=settings.decision_min_observations_mid,
+        min_observations_long=settings.decision_min_observations_long,
+        max_rsi_short=settings.decision_max_rsi_short,
+        max_distance_sma20_short_pct=settings.decision_max_distance_sma20_short_pct,
+    )
+    rules_summary = evaluate_candidates(records, horizon, config=rules_config)
+    provider = settings.decision_provider.upper()
+    if provider not in {"RULES", "JEV", "HYBRID"}:
+        raise ValueError("DECISION_PROVIDER must be RULES, JEV, or HYBRID.")
+
+    jev_summary = {"status": "not_selected", "model": settings.jev_model,
+                   "evaluated_count": 0, "pass_count": 0, "hold_count": 0,
+                   "reject_count": 0, "decisions": []}
+    shadow_mode = bool(settings.decision_shadow_mode and provider != "RULES")
+    active_jev = provider in {"JEV", "HYBRID"} and not shadow_mode
+    run_jev = provider in {"JEV", "HYBRID"}
+
+    if run_jev:
+        rule_pass_rows = [row for row in records if row.get("decision_verdict") == "PASS"]
+        # Shadow mode operates on copies and cannot change production eligibility.
+        jev_rows = deepcopy(rule_pass_rows) if shadow_mode else rule_pass_rows
+        pass_threshold = (
+            settings.hybrid_pass_probability_threshold
+            if provider == "HYBRID"
+            else settings.jev_pass_probability_threshold
+        )
+        confidence_threshold = (
+            settings.hybrid_confidence_threshold
+            if provider == "HYBRID"
+            else settings.jev_confidence_threshold
+        )
+        jev_summary = verify_candidates(
+            jev_rows,
+            horizon,
+            model=settings.jev_model or DEFAULT_JEV_MODEL,
+            timeout_seconds=settings.jev_timeout_seconds,
+            pass_threshold=pass_threshold,
+            reject_threshold=settings.jev_reject_probability_threshold,
+            confidence_threshold=confidence_threshold,
+        )
+        jev_summary["mode"] = provider
+        jev_summary["shadow_mode"] = shadow_mode
+        if active_jev:
+            # Only the Jev-evaluated deterministic PASS set can be changed.
+            by_symbol = {str(row.get("symbol", "")).upper(): row for row in jev_rows}
+            for row in rule_pass_rows:
+                evaluated = by_symbol.get(str(row.get("symbol", "")).upper())
+                if evaluated:
+                    for key in ("decision_verdict", "eligible_for_llm", "jev_verdict",
+                                "jev_probability", "jev_confidence", "jev_reason", "jev_model"):
+                        if key in evaluated:
+                            row[key] = evaluated[key]
+
+    decision_summary = {
+        "provider": provider,
+        "active_provider": "RULES" if shadow_mode else provider,
+        "shadow_mode": shadow_mode,
+        "rules": rules_summary,
+        "jev": jev_summary,
+        "rules_config": rules_config_snapshot(rules_config),
+        "config_snapshot": {
+            "provider": provider,
+            "shadow_mode": shadow_mode,
+            "jev_model": settings.jev_model,
+            "jev_timeout_seconds": settings.jev_timeout_seconds,
+            "jev_pass_probability_threshold": settings.jev_pass_probability_threshold,
+            "jev_reject_probability_threshold": settings.jev_reject_probability_threshold,
+            "jev_confidence_threshold": settings.jev_confidence_threshold,
+            "hybrid_pass_probability_threshold": settings.hybrid_pass_probability_threshold,
+            "hybrid_confidence_threshold": settings.hybrid_confidence_threshold,
+            "rules": rules_config_snapshot(rules_config),
+        },
+        "evaluated_count": rules_summary["evaluated_count"],
+        "pass_count": sum(row.get("decision_verdict") == "PASS" for row in records),
+        "hold_count": sum(row.get("decision_verdict") == "HOLD" for row in records),
+        "reject_count": sum(row.get("decision_verdict") == "REJECT" for row in records),
+        "decisions": [row.get("decision_model", {}) for row in records],
+        "description": (
+            "Deterministic rules are always the hard safety gate. Jev classifies only "
+            "rule-approved candidates for escalation to generative research review. "
+            "This is not a return forecast or trade recommendation."
+        ),
+    }
 
     # ------------------------------------------------------------------
     # Ranking
