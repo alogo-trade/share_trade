@@ -22,6 +22,7 @@ from .retrieval import retrieve_news
 from .review import local_challenge
 from .scoring import add_scores
 from .universe import load_universe
+from .us_engine import run_us_research
 
 logger = logging.getLogger("stock_etf")
 
@@ -345,6 +346,13 @@ def run(
     # Result
     # ------------------------------------------------------------------
 
+    try:
+        us_research = (run_us_research(settings.us_universe_path, settings.history_period, settings.us_analysis_limit, settings.cache_dir)
+                       if settings.us_research_enabled else {"status": "disabled", "instruments": [], "news": []})
+    except Exception as exc:
+        logger.exception("US research failed independently of NSE analysis")
+        us_research = {"status": "error", "message": str(exc), "instruments": [], "news": []}
+
     result = {
         "metadata": {
             "engine_version": "stock-etf-v9-portfolio-aware",
@@ -399,6 +407,7 @@ def run(
         # --------------------------------------------------------------
 
         "investor_profile": profile,
+        "us_research": us_research,
 
         # --------------------------------------------------------------
         # Portfolio

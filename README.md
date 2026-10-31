@@ -44,3 +44,10 @@ Uses yfinance news, Yahoo Finance search, Google News RSS, and Bing News RSS wit
 
 ### News scope
 The news layer intentionally covers direct company/ticker news plus India macro/policy, global macro, geopolitics, trade/sanctions, commodities, technology policy, environment, climate, pollution, extreme weather, and sector-specific developments. Indirect news is retained when it can affect demand, input costs, regulation, supply chains, financing conditions, or business continuity.
+
+
+## US market research
+
+The US pipeline is independent of NSE research and evaluates only symbols explicitly marked `zerodha_eligible: true` in `data/zerodha_us_universe.json`. The starter list is empty by design. Check each symbol in Zerodha Kite Global Stocks before adding it. Yahoo Finance provides research data, not Zerodha quotes. No US trading or holdings sync is implemented.
+
+Configure with `ENABLE_US_RESEARCH=true` (default), `ZERODHA_US_UNIVERSE_PATH`, and `US_ANALYSIS_UNIVERSE_LIMIT` (default 30).

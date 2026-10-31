@@ -109,3 +109,7 @@ class Settings:
         "ZERODHA_HOLDINGS_PATH",
         "backend_state/zerodha_holdings.json",
     )
+
+    us_research_enabled: bool = os.getenv("ENABLE_US_RESEARCH", "true").lower() in {"1", "true", "yes"}
+    us_universe_path: str = os.getenv("ZERODHA_US_UNIVERSE_PATH", "data/zerodha_us_universe.json")
+    us_analysis_limit: int = int(os.getenv("US_ANALYSIS_UNIVERSE_LIMIT", "30"))

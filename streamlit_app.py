@@ -922,13 +922,14 @@ def main():
     # Tabs
     # --------------------------------------------------------------
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
         [
             "🏆 Opportunities",
             "📊 Stock / ETF detail",
             "📰 News & review",
             "💼 Current Portfolio",
             "⚙ Diagnostics",
+            "🇺🇸 US Research",
         ]
     )
 
@@ -1651,6 +1652,32 @@ def main():
     # ==============================================================
     # Diagnostics
     # ==============================================================
+
+    with tab6:
+        us = result.get("us_research", {})
+        st.subheader("US stocks and ETFs")
+        st.caption("Only manually verified Zerodha Kite Global Stocks symbols are evaluated. Yahoo Finance supplies research data, not Zerodha quotes. US trading and US holdings sync are not implemented.")
+        status = us.get("status", "not_configured")
+        if status == "universe_not_configured":
+            st.warning("No verified US instruments are configured. Populate data/zerodha_us_universe.json after checking eligibility in Kite.")
+            st.code('{"instruments":[{"symbol":"AAPL","type":"STOCK","zerodha_eligible":true,"verified_on":"YYYY-MM-DD"}]}')
+        elif status == "error":
+            st.error(f"US research failed: {us.get('message', 'Unknown error')}")
+        elif status == "disabled":
+            st.info("US research is disabled. Set ENABLE_US_RESEARCH=true.")
+        else:
+            us_rows = us.get("instruments", [])
+            st.metric("Evaluated US instruments", len(us_rows))
+            if us_rows:
+                frame = pd.DataFrame(us_rows)
+                columns = [c for c in ["symbol","type","name","price_usd","change_1m_pct","change_6m_pct","volatility_annual_pct","market_cap_usd","expense_ratio","dividend_yield_pct","research_score","signal","data_status"] if c in frame.columns]
+                st.dataframe(frame[columns].sort_values("research_score", ascending=False, na_position="last"), use_container_width=True, hide_index=True)
+            for article in us.get("news", [])[:20]:
+                st.markdown(f"**{article.get('title', 'Untitled')}**")
+                st.caption(article.get("publisher", "Yahoo Finance"))
+                link = article.get("link", "")
+                if str(link).startswith(("https://", "http://")):
+                    st.link_button("Open article", link)
 
     with tab5:
 
