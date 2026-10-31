@@ -115,6 +115,10 @@ def evaluate_candidate(
             "rules_config": rules_config_snapshot(config),
         }
 
+    if row.get("data_integrity_status") == "QUARANTINED":
+        move = row.get("price_discontinuity_pct")
+        detail = f" ({move:.1f}% one-session move)" if isinstance(move, (int, float)) else ""
+        return result("REJECT", [f"Price history quarantined due to a discontinuity{detail}; verify ticker mapping and corporate actions."])
     if row.get("error") or row.get("data_quality_status") == "ERROR":
         return result("REJECT", ["Market-data error."])
     if score is None and row.get("data_quality_status") in {
