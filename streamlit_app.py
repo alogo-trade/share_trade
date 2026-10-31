@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import pandas as pd
@@ -36,9 +39,30 @@ OUT = ROOT / os.getenv(
 )
 
 LOGDIR = ROOT / "logs"
-LOGDIR.mkdir(
-    exist_ok=True
-)
+LOGDIR.mkdir(parents=True, exist_ok=True)
+
+
+def configure_app_logging():
+    """Install one persistent app log handler, safely across Streamlit reruns."""
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    if not any(getattr(handler, "_stock_etf_app_file", False) for handler in root_logger.handlers):
+        handler = RotatingFileHandler(
+            LOGDIR / "streamlit_app.log",
+            maxBytes=10 * 1024 * 1024,
+            backupCount=10,
+            encoding="utf-8",
+        )
+        handler.setFormatter(logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s"
+        ))
+        handler._stock_etf_app_file = True
+        root_logger.addHandler(handler)
+
+
+configure_app_logging()
+APP_LOGGER = logging.getLogger("stock_etf.ui")
 
 HORIZONS = {
     "SHORT_TERM": "1–2 Weeks",
@@ -310,84 +334,103 @@ def run_engine(
 
     env["PYTHONUNBUFFERED"] = "1"
 
-    log = []
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    run_log_path = LOGDIR / f"ui_run_{stamp}.log"
+    latest_log_path = LOGDIR / "stock_etf_latest.log"
+    log_tail = []
+
+    APP_LOGGER.info(
+        "Starting analysis run_id=%s horizon=%s age=%s capital=%s enable_llm=%s",
+        stamp, horizon, age, capital, enable_llm,
+    )
 
     with st.status(
         f"Running {HORIZONS[horizon]} research…",
         expanded=True,
     ) as status:
-
         log_placeholder = st.empty()
+        process = None
 
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                "-u",
-                str(
-                    ROOT
-                    / "run_stock_etf_analysis.py"
-                ),
-            ],
-            cwd=ROOT,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
+        try:
+            with run_log_path.open("w", encoding="utf-8", buffering=1) as run_log, \
+                 latest_log_path.open("w", encoding="utf-8", buffering=1) as latest_log:
 
-        for line in process.stdout or []:
+                header = (
+                    f"{datetime.now().isoformat(timespec='seconds')} "
+                    f"[INFO] UI analysis started run_id={stamp} horizon={horizon}"
+                )
+                for target in (run_log, latest_log):
+                    target.write(header + "\n")
+                    target.flush()
 
-            line = line.rstrip()
-
-            if line:
-                log.append(line)
-
-                log_placeholder.code(
-                    "\n".join(log[-100:])
+                process = subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-u",
+                        str(ROOT / "run_stock_etf_analysis.py"),
+                    ],
+                    cwd=ROOT,
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
                 )
 
-        return_code = process.wait()
+                for raw_line in process.stdout or []:
+                    line = raw_line.rstrip("\r\n")
+                    if not line:
+                        continue
 
-        stamp = pd.Timestamp.now().strftime(
-            "%Y%m%d_%H%M%S"
-        )
+                    # Persist each line immediately. A Streamlit rerun or UI
+                    # rendering failure must not discard the captured output.
+                    for target in (run_log, latest_log):
+                        target.write(line + "\n")
+                        target.flush()
 
-        (
-            LOGDIR
-            / f"ui_run_{stamp}.log"
-        ).write_text(
-            "\n".join(log)
-            + "\n",
-            encoding="utf-8",
-        )
+                    log_tail.append(line)
+                    if len(log_tail) > 100:
+                        del log_tail[:-100]
+                    log_placeholder.code("\n".join(log_tail))
 
-        (
-            LOGDIR
-            / "stock_etf_latest.log"
-        ).write_text(
-            "\n".join(log)
-            + "\n",
-            encoding="utf-8",
-        )
+                return_code = process.wait()
+                ending = (
+                    f"{datetime.now().isoformat(timespec='seconds')} "
+                    f"[{'INFO' if return_code == 0 else 'ERROR'}] "
+                    f"Engine exited with return_code={return_code}"
+                )
+                for target in (run_log, latest_log):
+                    target.write(ending + "\n")
+                    target.flush()
 
-        if return_code:
+            if return_code:
+                APP_LOGGER.error(
+                    "Analysis failed run_id=%s return_code=%s log=%s",
+                    stamp, return_code, run_log_path,
+                )
+                status.update(label="Analysis failed", state="error")
+                st.error(f"Engine failed (exit code {return_code}). Log: {run_log_path.relative_to(ROOT)}")
+                st.code("\n".join(log_tail[-30:]))
+                return None
 
-            status.update(
-                label="Analysis failed",
-                state="error",
+            APP_LOGGER.info("Analysis completed run_id=%s log=%s", stamp, run_log_path)
+            status.update(label="Analysis complete", state="complete")
+
+        except Exception:
+            APP_LOGGER.exception(
+                "Analysis orchestration failed run_id=%s log=%s",
+                stamp, run_log_path,
             )
-
-            st.error(
-                "Engine failed. See logs/."
-            )
-
-            return None
-
-        status.update(
-            label="Analysis complete",
-            state="complete",
-        )
+            if process is not None and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            status.update(label="Analysis orchestration failed", state="error")
+            st.error(f"Analysis orchestration failed. Check {run_log_path.relative_to(ROOT)} and logs/streamlit_app.log.")
+            raise
 
     return load()
 
