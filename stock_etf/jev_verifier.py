@@ -95,6 +95,7 @@ def verify_candidates(
             "hold_count": sum(batch.get("hold_count", 0) for batch in batches),
             "reject_count": sum(batch.get("reject_count", 0) for batch in batches),
             "usage": usage, "decisions": decisions, "batch_count": len(batches),
+            "request_ids": [batch.get("request_id") for batch in batches if batch.get("request_id")],
             "policy": {"pass_probability_min": pass_threshold,
                        "reject_probability_min": reject_threshold,
                        "confidence_min": confidence_threshold},
