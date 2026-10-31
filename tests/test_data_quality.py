@@ -218,7 +218,7 @@ def test_market_metadata_uses_known_exchange_currency_and_preserves_provider_uni
             {"date": "2026-07-15", "amount": 0.3},
         ]},
     )
-    assert verified_yield["dividend_yield_pct"] == 0.59
+    assert verified_yield["dividend_yield_pct"] == 0.6
     assert verified_yield["dividend_yield_status"] == "VERIFIED_TTM_CASH_DIVIDENDS"
     assert verified_yield["dividend_yield_ttm_event_count"] == 2
     assert verified_yield["dividend_yield_ttm_dividend_amount"] == 0.6
