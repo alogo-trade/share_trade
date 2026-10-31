@@ -317,6 +317,8 @@ def run_engine(
         expanded=True,
     ) as status:
 
+        log_placeholder = st.empty()
+
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -341,10 +343,8 @@ def run_engine(
             if line:
                 log.append(line)
 
-                st.code(
-                    "\n".join(
-                        log[-100:]
-                    )
+                log_placeholder.code(
+                    "\n".join(log[-100:])
                 )
 
         return_code = process.wait()
