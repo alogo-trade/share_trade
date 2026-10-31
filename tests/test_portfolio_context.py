@@ -1,7 +1,7 @@
 from stock_etf.portfolio import apply_portfolio_context, build_portfolio_instrument_context
 
 
-def test_owned_instrument_without_market_score_keeps_holding_context():
+def test_owned_instrument_without_market_score_keeps_holding_context_and_weight():
     records = [
         {"symbol": "HCLTECH", "ranking_score": None, "instrument_type": "STOCK"},
         {"symbol": "TATAPOWER", "ranking_score": 80.0, "instrument_type": "STOCK"},
@@ -9,14 +9,23 @@ def test_owned_instrument_without_market_score_keeps_holding_context():
     holdings = {
         "HCLTECH": {"current_value": 12500.0, "pnl_pct": 8.5},
         "TATAPOWER": {"current_value": 7500.0, "pnl_pct": 4.0},
+        # The portfolio denominator must include broker holdings outside
+        # the current research universe as well.
+        "UNMATCHED": {"current_value": 10000.0, "pnl_pct": 1.0},
     }
     apply_portfolio_context(records, holdings)
+
     assert records[0]["already_owned"] is True
     assert records[0]["portfolio_current_value"] == 12500.0
     assert records[0]["portfolio_pnl_pct"] == 8.5
-    context = {item["symbol"]: item for item in build_portfolio_instrument_context(records, holdings)}
+    assert records[0]["portfolio_position_pct"] == 41.67
+    context = {
+        item["symbol"]: item
+        for item in build_portfolio_instrument_context(records, holdings)
+    }
     assert context["HCLTECH"]["already_owned"] is True
     assert context["HCLTECH"]["portfolio_current_value"] == 12500.0
+    assert context["HCLTECH"]["portfolio_position_pct"] == 41.67
 
 
 def test_unowned_instrument_is_not_marked_owned_when_score_missing():
@@ -24,3 +33,4 @@ def test_unowned_instrument_is_not_marked_owned_when_score_missing():
     apply_portfolio_context(records, {"HCLTECH": {"current_value": 12500.0}})
     assert records[0]["already_owned"] is False
     assert records[0]["portfolio_current_value"] == 0.0
+    assert records[0]["portfolio_position_pct"] == 0.0
