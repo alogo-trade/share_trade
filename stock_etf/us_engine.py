@@ -26,7 +26,9 @@ def _normalise_yield_pct(value: Any) -> float | None:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if not np.isfinite(number) or number < 0:
+    # Yahoo's dividendYield is a fractional ratio, never percentage points.
+    # Ratios above 1 imply an implausible yield above 100% and are treated as bad data.
+    if not np.isfinite(number) or number < 0 or number > 1:
         return None
     return round(number * 100, 2)
 
@@ -194,7 +196,9 @@ def run_us_research(
                         float(close.pct_change().dropna().std() * np.sqrt(252) * 100),
                         2,
                     )
-                row["data_status"] = "live"
+                row["data_status"] = "latest_available"
+                row["last_market_data_date"] = str(close.index[-1].date())
+                row["quote_freshness"] = "NOT_REAL_TIME_VERIFIED"
             currency = str(info.get("currency") or item.get("currency") or "USD").strip().upper()
             yahoo_sector = info.get("sector")
             curated_sector = _sector_from_category(item.get("category"), item.get("type"))
@@ -255,13 +259,23 @@ def run_us_research(
             row["error"] = str(exc)
         results.append(row)
 
+    verified_count = sum(
+        x["eligibility_status"] == "ZERODHA_VERIFIED" for x in results
+    )
+    failed_count = sum(bool(x.get("error")) for x in results)
     return {
-        "status": "ok",
+        "status": "partial" if verified_count == 0 or failed_count else "ok",
+        "scope": "RESEARCH_ONLY" if verified_count == 0 else "VERIFIED_AND_RESEARCH",
+        "status_reason": (
+            "No instruments are explicitly verified as Zerodha-eligible; results are research-only."
+            if verified_count == 0
+            else "Some instruments failed market-data retrieval." if failed_count
+            else "Verified instruments and research candidates were evaluated."
+        ),
         "configured_count": configured_count,
         "evaluated_count": len(results),
-        "verified_count": sum(
-            x["eligibility_status"] == "ZERODHA_VERIFIED" for x in results
-        ),
+        "verified_count": verified_count,
+        "failed_count": failed_count,
         "candidate_count": sum(
             x["eligibility_status"] == "CANDIDATE_UNVERIFIED" for x in results
         ),
