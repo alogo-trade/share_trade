@@ -11,11 +11,7 @@ import requests
 logger = logging.getLogger("stock_etf.jev")
 DEFAULT_MODEL = "typesafe/jev-1.14"
 DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
-CRITERIA = [
-    "PASS: coherent setup supported by supplied facts, suitable for further research only.",
-    "REVIEW: mixed, incomplete, extended, or inconsistent evidence requiring review.",
-    "REJECT: material contradiction or clearly unsuitable setup for further research.",
-]
+CRITERIA = ["PASS", "REVIEW", "REJECT"]
 CHOICES = {"PASS", "REVIEW", "REJECT"}
 
 
@@ -92,8 +88,9 @@ def verify_candidates(
             "instructions": (
                 f"Classify candidates[{index}] for escalation to a separate generative research review. "
                 "Use only supplied facts. Do not forecast returns, infer missing facts, or recommend trades. "
-                "PASS means coherent and supported for further research; REVIEW means uncertain or mixed; "
-                "REJECT means materially contradictory or clearly unsuitable."
+                "PASS means coherent and supported for further research; REVIEW means uncertain, "
+                "mixed, incomplete, or extended; REJECT means materially contradictory or clearly "
+                "unsuitable. Return only the best matching choice."
             ),
             "criteria": CRITERIA,
         }
@@ -154,7 +151,7 @@ def verify_candidates(
         row["jev_verdict"] = choice
         row["jev_probability"] = probability
         row["jev_confidence"] = confidence
-        row["jev_reason"] = next(item for item in CRITERIA if item.startswith(choice + ":"))
+        row["jev_reason"] = {"PASS": "Coherent evidence supports escalation to further research.", "REVIEW": "Evidence is mixed, incomplete, extended, or uncertain.", "REJECT": "Evidence is materially contradictory or clearly unsuitable."}[choice]
         row["jev_model"] = resolved_model
         counts[verdict] += 1
         decisions.append({"symbol": row.get("symbol"), "verdict": verdict,
