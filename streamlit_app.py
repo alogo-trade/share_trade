@@ -1839,6 +1839,10 @@ def main():
         dm3.metric("HOLD", decision_model.get("hold_count", 0))
         dm4.metric("REJECT", decision_model.get("reject_count", 0))
         st.caption(decision_model.get("description", "Decision-model summary not present in this result."))
+        jev_status = decision_model.get("jev", {})
+        st.caption(f"Selected provider: {decision_model.get('provider', 'RULES')} · Active provider: {decision_model.get('active_provider', 'RULES')} · Shadow mode: {decision_model.get('shadow_mode', False)}")
+        if jev_status.get("status") not in {None, "not_selected", "no_candidates"}:
+            st.caption(f"Jev status: {jev_status.get('status')} · Model: {jev_status.get('model', '')} · Evaluated: {jev_status.get('evaluated_count', 0)}")
         decisions = decision_model.get("decisions", [])
         if decisions:
             decision_frame = pd.DataFrame([
@@ -1846,6 +1850,9 @@ def main():
                     "Symbol": item.get("symbol"),
                     "Verdict": item.get("verdict"),
                     "Eligible for LLM": item.get("eligible_for_llm"),
+                    "Jev choice": item.get("jev_verdict"),
+                    "Jev probability": item.get("jev_probability"),
+                    "Jev confidence": item.get("jev_confidence"),
                     "Reasons": "; ".join(item.get("reasons", [])),
                 }
                 for item in decisions
