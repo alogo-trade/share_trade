@@ -80,3 +80,20 @@ def test_rules_configuration_is_in_batch_summary():
     config = DecisionRulesConfig(max_data_age_days=3)
     summary = evaluate_candidates([good()], "SHORT_TERM", date(2026, 10, 31), config)
     assert summary["rules_config"]["max_data_age_days"] == 3
+
+
+def test_market_session_age_ignores_weekends():
+    from stock_etf.decision_model import _trading_session_age
+
+    assert _trading_session_age(date(2026, 10, 30), date(2026, 11, 2)) == 1
+    assert _trading_session_age(date(2026, 10, 29), date(2026, 11, 2)) == 2
+    assert _trading_session_age(date(2026, 11, 3), date(2026, 11, 2)) == -1
+
+
+def test_market_timezone_is_selected_from_exchange_metadata():
+    from stock_etf.decision_model import _market_local_date
+
+    fallback = date(2026, 1, 1)
+    assert _market_local_date({"exchange": "NSE"}, fallback).isoformat()
+    assert _market_local_date({"currency": "USD"}, fallback).isoformat()
+
