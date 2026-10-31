@@ -8,9 +8,29 @@ from stock_etf.engine import run
 from stock_etf.profile_store import load_profile
 
 
+def _prune_engine_logs(log_dir: Path, keep: int = 5) -> None:
+    """Keep only the newest five timestamped engine logs."""
+    candidates = sorted(
+        (
+            path for path in log_dir.glob("stock_etf_*.log")
+            if path.is_file() and path.name != "stock_etf_engine_latest.log"
+        ),
+        key=lambda path: (path.stat().st_mtime, path.name),
+        reverse=True,
+    )
+    for old_path in candidates[keep:]:
+        try:
+            old_path.unlink()
+        except OSError:
+            logging.getLogger("stock_etf").warning(
+                "Could not remove expired engine log %s", old_path, exc_info=True
+            )
+
+
 def configure_engine_logging(log_dir: Path) -> Path:
     """Configure console and durable per-run/latest engine logs."""
     log_dir.mkdir(parents=True, exist_ok=True)
+    _prune_engine_logs(log_dir)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     run_log = log_dir / f"stock_etf_{stamp}.log"
     latest_log = log_dir / "stock_etf_engine_latest.log"
