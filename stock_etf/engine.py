@@ -21,6 +21,7 @@ from .ranking import diversify, rank
 from .retrieval import retrieve_news
 from .review import local_challenge
 from .scoring import add_scores
+from .decision_model import evaluate_candidates
 from .universe import load_universe
 from .us_engine import run_us_research
 
@@ -185,6 +186,9 @@ def run(
         holdings,
     )
 
+    # Decision-tree verification runs before any candidate reaches the LLM.
+    decision_summary = evaluate_candidates(records, horizon)
+
     # ------------------------------------------------------------------
     # Ranking
     # ------------------------------------------------------------------
@@ -267,18 +271,14 @@ def run(
     # Research candidates
     # ------------------------------------------------------------------
 
-    candidates = shortlist[
-        : settings.vector_limit
-    ]
+    candidates = [
+        row for row in shortlist
+        if row.get("decision_verdict") == "PASS"
+    ][: settings.vector_limit]
 
-    deterministic_reviews = (
-        local_challenge(
-            candidates,
-            horizon,
-        )
-    )
+    deterministic_reviews = local_challenge(shortlist, horizon)
 
-    if settings.enable_llm:
+    if settings.enable_llm and candidates:
         (
             llm_reviews,
             tokens,
@@ -288,6 +288,10 @@ def run(
             horizon,
             relevant,
         )
+    elif settings.enable_llm:
+        llm_reviews = []
+        tokens = 0
+        llm_status = "skipped_by_decision_gate"
     else:
         llm_reviews = []
         tokens = 0
@@ -408,6 +412,7 @@ def run(
 
         "investor_profile": profile,
         "us_research": us_research,
+        "decision_model": decision_summary,
 
         # --------------------------------------------------------------
         # Portfolio

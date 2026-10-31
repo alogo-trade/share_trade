@@ -6,11 +6,12 @@
 - `stock_universe.json` is empty by default. Populate it only if you intentionally want a custom universe.
 - Latest available market price/history comes from Yahoo Finance. Historical data supports the technical calculations; it should not be described as a guaranteed tick-by-tick NSE feed. Yahoo Finance supports market-data downloads across daily and intraday intervals, subject to its data limitations. citeturn0search3
 - News retrieval now queries each shortlisted symbol plus a broader Indian-market query.
+- A transparent deterministic decision-tree gate checks data freshness, history depth, confidence, signal consistency and short-term overextension before LLM review. Only PASS candidates are sent to the LLM. HOLD and REJECT decisions include auditable reasons. This is a rule-based verification model, not a trained return predictor.
 - Deterministic challenge reviews are always generated, even without an LLM API key.
 - Optional OpenRouter LLM review remains available.
 - Every run is persisted under `logs/` with a timestamped log and `stock_etf_latest.log`.
 - Age and investment capital are available in the sidebar and are persisted with the analysis.
-- Capital produces allocation context based on the quantitative ranking. It does not change the raw market score.
+- Capital produces allocation context based only on candidates that pass the decision gate. It does not change the raw market score. AVOID, WATCH, stale-data and low-confidence instruments receive zero suggested allocation.
 
 ## Run
 ```bash

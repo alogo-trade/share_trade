@@ -180,7 +180,7 @@ def calculate_sector_exposure(
             symbol
         )
 
-        if not holding:
+        if not holding or str(record.get("instrument_type") or "STOCK").upper() == "ETF":
             continue
 
         current_value = float(
@@ -194,13 +194,9 @@ def calculate_sector_exposure(
         if current_value <= 0:
             continue
 
-        sector = str(
-            record.get("sector")
-            or "Unknown"
-        ).strip()
-
-        if not sector:
-            sector = "Unknown"
+        sector = str(record.get("sector") or "").strip()
+        if not sector or sector.lower() in {"unknown", "none", "nan"}:
+            continue
 
         sector_values[sector] = (
             sector_values.get(
@@ -409,20 +405,13 @@ def apply_portfolio_context(
             else 0.0
         )
 
-        sector = str(
-            record.get("sector")
-            or "Unknown"
-        ).strip()
-
-        if not sector:
-            sector = "Unknown"
-
-        sector_pct = float(
-            sector_exposure.get(
-                sector,
-                0.0,
-            )
+        sector = str(record.get("sector") or "").strip()
+        sector_applicable = (
+            str(record.get("instrument_type") or "STOCK").upper() != "ETF"
+            and bool(sector)
+            and sector.lower() not in {"unknown", "none", "nan"}
         )
+        sector_pct = float(sector_exposure.get(sector, 0.0)) if sector_applicable else 0.0
 
         penalty = 0.0
 
@@ -438,7 +427,7 @@ def apply_portfolio_context(
             )
 
         # Sector concentration.
-        if sector_pct >= 35.0:
+        if sector_applicable and sector_pct >= 35.0:
             penalty += min(
                 8.0,
                 (
@@ -522,7 +511,7 @@ def apply_portfolio_context(
                     "portfolio_context"
                 ] = "EXISTING_POSITION"
 
-        elif sector_pct >= 35.0:
+        elif sector_applicable and sector_pct >= 35.0:
             record[
                 "portfolio_context"
             ] = "HIGH_SECTOR_EXPOSURE"
