@@ -11,26 +11,46 @@ import yfinance as yf
 logger = logging.getLogger("stock_etf.us")
 
 
-def _normalise_yield_pct(value: Any) -> float | None:
-    """
-    Convert Yahoo Finance's dividendYield ratio to percentage points.
+MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT = 15.0
 
-    yfinance exposes dividendYield as a fractional ratio (for example,
-    0.006 means 0.6%). Do not use a magnitude heuristic here: a raw value
-    greater than 1 is still a ratio, not evidence that it is already a
-    percentage. This function is only for the Yahoo dividendYield field.
-    """
+
+def _normalise_yield_pct(value: Any) -> float | None:
+    """Convert Yahoo's fractional dividendYield and reject implausible yields."""
     if isinstance(value, bool) or value is None:
         return None
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    # Yahoo's dividendYield is a fractional ratio, never percentage points.
-    # Ratios above 1 imply an implausible yield above 100% and are treated as bad data.
     if not np.isfinite(number) or number < 0 or number > 1:
         return None
-    return round(number * 100, 2)
+    pct = round(number * 100, 2)
+    return pct if pct <= MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT else None
+
+
+def _yield_metadata(value: Any) -> dict[str, Any]:
+    if isinstance(value, bool) or value is None:
+        raw = None
+    else:
+        try:
+            raw = float(value)
+        except (TypeError, ValueError):
+            raw = None
+    normalized = _normalise_yield_pct(value)
+    if raw is None or not np.isfinite(raw):
+        status = "MISSING"
+    elif raw < 0 or raw > 1:
+        status = "INVALID_PROVIDER_VALUE"
+    elif normalized is None:
+        status = "IMPLAUSIBLE_YIELD"
+    else:
+        status = "VALID"
+    return {
+        "dividend_yield_raw": raw,
+        "dividend_yield_raw_unit": "YAHOO_FRACTION",
+        "dividend_yield_pct": normalized,
+        "dividend_yield_status": status,
+    }
 
 
 def _sector_from_category(category: Any, instrument_type: str) -> str | None:
@@ -225,8 +245,7 @@ def run_us_research(
                 else "UNAVAILABLE"
             )
             row["expense_ratio"] = info.get("annualReportExpenseRatio")
-            if info.get("dividendYield") is not None:
-                row["dividend_yield_pct"] = _normalise_yield_pct(info["dividendYield"])
+            row.update(_yield_metadata(info.get("dividendYield")))
             one, six = row.get("change_1m_pct"), row.get("change_6m_pct")
             if one is not None or six is not None:
                 score = (
