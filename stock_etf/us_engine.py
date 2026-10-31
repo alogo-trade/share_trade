@@ -37,7 +37,7 @@ def _yield_metadata(
         current_price = float(price)
         if dividend_history is None or not np.isfinite(current_price) or current_price <= 0:
             raise ValueError("dividend history or valid price unavailable")
-        end = np.datetime64(as_of, "D") if as_of is not None else np.datetime64("today", "D")
+        end = np.datetime64(str(as_of)[:10], "D") if as_of is not None else np.datetime64("today", "D")
         start = end - np.timedelta64(365, "D")
         paid = []
         for event_date, amount in dividend_history:
