@@ -17,6 +17,16 @@ def test_yahoo_dividend_yield_ratio_is_converted_to_percentage_points():
     assert _normalise_yield_pct(6.02) is None
 
 
+def test_implausible_yahoo_yield_is_retained_as_raw_but_not_published():
+    from stock_etf.us_engine import _yield_metadata
+
+    result = _yield_metadata(0.31)
+    assert result["dividend_yield_raw"] == 0.31
+    assert result["dividend_yield_raw_unit"] == "YAHOO_FRACTION"
+    assert result["dividend_yield_pct"] is None
+    assert result["dividend_yield_status"] == "IMPLAUSIBLE_YIELD"
+
+
 def test_invalid_yahoo_dividend_yield_values_are_ignored():
     assert _normalise_yield_pct(None) is None
     assert _normalise_yield_pct(True) is None
