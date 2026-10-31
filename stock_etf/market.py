@@ -210,11 +210,11 @@ def _technicals(df):
 
 def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='cache/market', cache_ttl_hours=12, request_timeout_seconds=15):
     """
-    Load historical prices with a bounded cache lifetime.
+    Load historical prices and corporate actions with a bounded cache lifetime.
 
-    Expired cache entries are refreshed from Yahoo. If refresh fails,
-    the old cache is retained for diagnostics but marked STALE_CACHE so
-    the decision gate cannot treat it as current market data.
+    Cache entries without the Dividends action column are refreshed even when
+    otherwise fresh. If refresh fails, old prices remain available only as
+    STALE_CACHE and dividend history stays explicitly unavailable.
     """
     out = {}
     stale = {}
@@ -235,13 +235,22 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
             if frame is None or frame.empty:
                 missing.append(symbol)
                 continue
-            if age_hours <= cache_ttl_hours:
+            normalized_frame = _normalise_history_columns(frame, symbol)
+            has_dividend_actions = (
+                normalized_frame is not None
+                and "Dividends" in normalized_frame.columns
+            )
+            if age_hours <= cache_ttl_hours and has_dividend_actions:
+                frame = normalized_frame
                 frame.attrs['cache_status'] = 'FRESH_CACHE'
                 frame.attrs['cache_age_hours'] = round(age_hours, 2)
                 frame.attrs['data_source'] = 'Yahoo Finance'
                 out[symbol] = frame
             else:
-                stale[symbol] = frame
+                # Older cache entries were downloaded with actions=False.
+                # Keep them only as a stale technical-data fallback while
+                # requesting a fresh OHLCV + corporate-actions response.
+                stale[symbol] = normalized_frame
                 missing.append(symbol)
         except Exception as exc:
             logger.warning('Could not read cached history for %s: %s', symbol, exc)
@@ -282,7 +291,7 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
         logger.info("Yahoo history request started: %d symbols (first=%s, last=%s).", len(group), group[0], group[-1])
         try:
             data = yf.download(
-                group, period=period, auto_adjust=True, actions=False,
+                group, period=period, auto_adjust=True, actions=True,
                 progress=False, threads=False, group_by='ticker',
                 timeout=request_timeout_seconds
             )
@@ -356,7 +365,7 @@ def _history_batch(symbols, period='3y', batch_size=40, retries=1, cache_dir='ca
             break
     return out
 
-def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
+def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168, fetch_dividend_history=True):
     """Load Yahoo fundamentals with a seven-day cache and stale fallback."""
     cache = Path(cache_dir)
     cache.mkdir(parents=True, exist_ok=True)
@@ -366,10 +375,12 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
         try:
             cached = json.loads(path.read_text(encoding='utf-8'))
             age_hours = max(0.0, (time.time() - path.stat().st_mtime) / 3600.0)
-            if (
-                age_hours <= cache_ttl_hours
-                and cached.get("__dividend_history_status") == "FETCHED"
-                and "__dividend_history" in cached
+            if age_hours <= cache_ttl_hours and (
+                not fetch_dividend_history
+                or (
+                    cached.get("__dividend_history_status") == "FETCHED"
+                    and "__dividend_history" in cached
+                )
             ):
                 return cached
         except Exception:
@@ -387,24 +398,30 @@ def _info(ticker, cache_dir='cache/fundamentals', cache_ttl_hours=168):
         try:
             instrument = yf.Ticker(ticker)
             info = instrument.info or {}
-            try:
-                dividend_series = instrument.dividends
-                if dividend_series is None:
-                    raise ValueError("Yahoo returned no dividend-history series")
-                info["__dividend_history"] = [
-                    {"date": str(event_date), "amount": float(amount)}
-                    for event_date, amount in dividend_series.items()
-                ]
-                info["__dividend_history_status"] = "FETCHED"
+            if fetch_dividend_history:
+                try:
+                    dividend_series = instrument.dividends
+                    if dividend_series is None:
+                        raise ValueError("Yahoo returned no dividend-history series")
+                    info["__dividend_history"] = [
+                        {"date": str(event_date), "amount": float(amount)}
+                        for event_date, amount in dividend_series.items()
+                    ]
+                    info["__dividend_history_status"] = "FETCHED"
+                    info["__dividend_history_error"] = None
+                except Exception as dividend_exc:
+                    dividend_message = str(dividend_exc)
+                    if 'Too Many Requests' in dividend_message or 'RateLimit' in dividend_message or '429' in dividend_message:
+                        CB.trip(dividend_message)
+                    logger.warning("Dividend history unavailable for %s: %s", ticker, dividend_exc)
+                    info["__dividend_history"] = None
+                    info["__dividend_history_status"] = "FETCH_FAILED"
+                    info["__dividend_history_error"] = f"{type(dividend_exc).__name__}: {dividend_exc}"[:240]
+            else:
+                # Dividend events are collected in the batched price request
+                # using Yahoo's corporate-action columns, not one request per ticker.
+                info["__dividend_history_status"] = "BATCHED_ACTIONS_PENDING"
                 info["__dividend_history_error"] = None
-            except Exception as dividend_exc:
-                dividend_message = str(dividend_exc)
-                if 'Too Many Requests' in dividend_message or 'RateLimit' in dividend_message or '429' in dividend_message:
-                    CB.trip(dividend_message)
-                logger.warning("Dividend history unavailable for %s: %s", ticker, dividend_exc)
-                info["__dividend_history"] = None
-                info["__dividend_history_status"] = "FETCH_FAILED"
-                info["__dividend_history_error"] = f"{type(dividend_exc).__name__}: {dividend_exc}"[:240]
             info["__dividend_history_fetched_at"] = pd.Timestamp.utcnow().isoformat()
             if info:
                 path.write_text(json.dumps(info, default=str), encoding='utf-8')
@@ -457,7 +474,7 @@ def _normalise_history_columns(df, symbol=None):
 
         # If another column level remains, select the level containing OHLCV.
         if isinstance(frame.columns, pd.MultiIndex):
-            expected = {"open", "high", "low", "close", "adj close", "volume"}
+            expected = {"open", "high", "low", "close", "adj close", "volume", "dividends", "stock splits"}
             for level in range(frame.columns.nlevels):
                 values = {
                     str(value).strip().lower()
@@ -475,13 +492,31 @@ def _normalise_history_columns(df, symbol=None):
             canonical = {
                 "open": "Open", "high": "High", "low": "Low",
                 "close": "Close", "adj close": "Adj Close",
-                "volume": "Volume",
+                "volume": "Volume", "dividends": "Dividends",
+                "stock splits": "Stock Splits",
             }.get(normalized)
             if canonical and column != canonical:
                 rename[column] = canonical
         if rename:
             frame = frame.rename(columns=rename)
     return frame
+
+
+def _dividend_history_from_frame(df):
+    """Extract Yahoo corporate-action dividend events from a batched price frame."""
+    frame = _normalise_history_columns(df)
+    if frame is None or "Dividends" not in frame.columns:
+        return None, "UNAVAILABLE", (
+            "Yahoo batched history response did not include the Dividends action column"
+        )
+
+    amounts = pd.to_numeric(frame["Dividends"], errors="coerce").fillna(0.0)
+    events = [
+        (event_date, float(amount))
+        for event_date, amount in amounts.items()
+        if _safe_float(amount) is not None and float(amount) > 0
+    ]
+    return events, "FETCHED", None
 
 
 def _merge_record(row, df, info):
@@ -516,6 +551,25 @@ def _merge_record(row, df, info):
     close_series = pd.to_numeric(df["Close"], errors="coerce").dropna()
     discontinuity_pct = _price_discontinuity(close_series)
     tech = _technicals(df)
+
+    dividend_history, dividend_history_status, dividend_history_error = (
+        _dividend_history_from_frame(df)
+    )
+    dividend_history_source = "YAHOO_BATCHED_ACTIONS"
+    if dividend_history_status != "FETCHED":
+        # Compatibility fallback for older cached fundamentals. New pipeline
+        # runs should use the batched action column for the full universe.
+        cached_history = info.get("__dividend_history")
+        if (
+            info.get("__dividend_history_status") == "FETCHED"
+            and cached_history is not None
+        ):
+            dividend_history = cached_history
+            dividend_history_status = "FETCHED"
+            dividend_history_error = None
+            dividend_history_source = "YAHOO_TICKER_DIVIDENDS_CACHE"
+        else:
+            dividend_history_source = "UNAVAILABLE"
     yahoo_sector = _metadata_text(info.get("sector"))
     universe_sector = _metadata_text(row.get("sector") or row.get("sector_hint"))
     sector = yahoo_sector or universe_sector
@@ -563,14 +617,15 @@ def _merge_record(row, df, info):
         "ev_ebitda": _safe_float(info.get("enterpriseToEbitda")),
         **_yield_metadata(
             info.get("dividendYield"),
-            info.get("__dividend_history"),
+            dividend_history,
             tech.get("price"),
             as_of=close_series.index[-1],
-            history_status=info.get("__dividend_history_status"),
-            history_error=info.get("__dividend_history_error"),
+            history_status=dividend_history_status,
+            history_error=dividend_history_error,
             price_date=close_series.index[-1],
             currency=currency,
         ),
+        "dividend_yield_history_source": dividend_history_source,
         "roe_pct": _pct(info.get("returnOnEquity")),
         "roa_pct": _pct(info.get("returnOnAssets")),
         "profit_margin_pct": _pct(info.get("profitMargins")),
@@ -785,7 +840,12 @@ def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache',h
             # Fundamentals are limited to the first 60 liquid candidates.
             info_started=time.monotonic()
             logger.info('Fundamentals lookup %d/60 started: %s.',i+1,ysym)
-            info = _info(ysym, str(Path(cache_dir) / 'fundamentals'), cache_ttl_hours=fundamentals_cache_ttl_hours)
+            info = _info(
+                ysym,
+                str(Path(cache_dir) / 'fundamentals'),
+                cache_ttl_hours=fundamentals_cache_ttl_hours,
+                fetch_dividend_history=False,
+            )
             logger.info('Fundamentals lookup %d/60 completed in %.1fs: %s (%d fields).',i+1,time.monotonic()-info_started,ysym,len(info))
         elif p.exists():
             try:
