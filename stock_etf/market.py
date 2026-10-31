@@ -27,12 +27,35 @@ def _safe_float(x):
 def _pct(x):
     v=_safe_float(x); return None if v is None else v*100
 
+MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT = 15.0
+
+
 def _yield_pct(x):
-    """Convert Yahoo Finance's fractional dividendYield to percentage points."""
+    """Convert Yahoo's fractional dividendYield, rejecting implausible outputs."""
     v = _safe_float(x)
     if v is None or v < 0 or v > 1:
         return None
-    return round(v * 100, 2)
+    pct = round(v * 100, 2)
+    return pct if pct <= MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT else None
+
+
+def _yield_metadata(value):
+    raw = _safe_float(value)
+    normalized = _yield_pct(value)
+    if raw is None:
+        status = "MISSING"
+    elif raw < 0 or raw > 1:
+        status = "INVALID_PROVIDER_VALUE"
+    elif normalized is None:
+        status = "IMPLAUSIBLE_YIELD"
+    else:
+        status = "VALID"
+    return {
+        "dividend_yield_raw": raw,
+        "dividend_yield_raw_unit": "YAHOO_FRACTION",
+        "dividend_yield_pct": normalized,
+        "dividend_yield_status": status,
+    }
 
 
 def _price_discontinuity(close, threshold_pct=50.0):
@@ -333,7 +356,7 @@ def _merge_record(row, df, info):
         "forward_pe": _safe_float(info.get("forwardPE")),
         "pb": _safe_float(info.get("priceToBook")),
         "ev_ebitda": _safe_float(info.get("enterpriseToEbitda")),
-        "dividend_yield_pct": _yield_pct(info.get("dividendYield")),
+        **_yield_metadata(info.get("dividendYield")),
         "roe_pct": _pct(info.get("returnOnEquity")),
         "roa_pct": _pct(info.get("returnOnAssets")),
         "profit_margin_pct": _pct(info.get("profitMargins")),
