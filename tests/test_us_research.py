@@ -36,3 +36,16 @@ def test_duplicate_symbols_are_deduplicated(tmp_path):
         {"symbol": "AAPL", "type": "STOCK", "zerodha_eligible": True, "name": "Apple"},
     ]}))
     assert len(load_us_universe(str(path))) == 1
+
+
+def test_exchange_metadata_is_present_in_candidate_data():
+    from pathlib import Path
+    from stock_etf.us_engine import load_us_candidates
+
+    path = Path("data/us_candidate_universe.json")
+    rows = load_us_candidates(str(path))
+    assert rows
+    assert all(row.get("primary_exchange") in {"NASDAQ", "NYSE", "NYSE_ARCA"} for row in rows)
+    assert all(row.get("india_inx_exchange_supported") is True for row in rows)
+    assert all(row.get("india_inx_symbol_verified") is False for row in rows)
+    assert all(row.get("zerodha_eligible") is False for row in rows)

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Curated US-market discovery watchlist for research. These symbols are not confirmed as available or eligible in Zerodha Kite Global Stocks.",
+  "description": "Curated US-market discovery watchlist. All symbols map to US exchanges listed by India INX Global Access, but individual instrument availability is not verified.",
   "eligibility_policy": "All rows are unverified research candidates. Move a symbol to data/zerodha_us_universe.json and set zerodha_eligible=true only after checking it in the user's Kite Global Stocks account.",
   "sources": [
     "Curated large-cap US equities for broad sector coverage",
@@ -13,462 +13,737 @@
       "name": "Apple",
       "type": "STOCK",
       "category": "Technology hardware",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "MSFT",
       "name": "Microsoft",
       "type": "STOCK",
       "category": "Software and cloud",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "NVDA",
       "name": "NVIDIA",
       "type": "STOCK",
       "category": "Semiconductors and AI",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "AMZN",
       "name": "Amazon",
       "type": "STOCK",
       "category": "E-commerce and cloud",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "GOOGL",
       "name": "Alphabet",
       "type": "STOCK",
       "category": "Internet and AI",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "META",
       "name": "Meta Platforms",
       "type": "STOCK",
       "category": "Internet platforms",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "AVGO",
       "name": "Broadcom",
       "type": "STOCK",
       "category": "Semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "TSLA",
       "name": "Tesla",
       "type": "STOCK",
       "category": "Automotive and energy",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "BRK-B",
       "name": "Berkshire Hathaway",
       "type": "STOCK",
       "category": "Diversified financials",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "LLY",
       "name": "Eli Lilly",
       "type": "STOCK",
       "category": "Healthcare",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "JPM",
       "name": "JPMorgan Chase",
       "type": "STOCK",
       "category": "Banking",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "V",
       "name": "Visa",
       "type": "STOCK",
       "category": "Payments",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "MA",
       "name": "Mastercard",
       "type": "STOCK",
       "category": "Payments",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "WMT",
       "name": "Walmart",
       "type": "STOCK",
       "category": "Consumer staples retail",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "COST",
       "name": "Costco",
       "type": "STOCK",
       "category": "Consumer staples retail",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "NFLX",
       "name": "Netflix",
       "type": "STOCK",
       "category": "Media and streaming",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "ORCL",
       "name": "Oracle",
       "type": "STOCK",
       "category": "Enterprise software",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "CRM",
       "name": "Salesforce",
       "type": "STOCK",
       "category": "Enterprise software",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "AMD",
       "name": "Advanced Micro Devices",
       "type": "STOCK",
       "category": "Semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "QCOM",
       "name": "Qualcomm",
       "type": "STOCK",
       "category": "Semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "MU",
       "name": "Micron Technology",
       "type": "STOCK",
       "category": "Memory semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "AMAT",
       "name": "Applied Materials",
       "type": "STOCK",
       "category": "Semiconductor equipment",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "LRCX",
       "name": "Lam Research",
       "type": "STOCK",
       "category": "Semiconductor equipment",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "TSM",
       "name": "Taiwan Semiconductor Manufacturing",
       "type": "STOCK",
       "category": "Semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "ASML",
       "name": "ASML Holding",
       "type": "STOCK",
       "category": "Semiconductor equipment",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "PLTR",
       "name": "Palantir Technologies",
       "type": "STOCK",
       "category": "Software and analytics",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "NOW",
       "name": "ServiceNow",
       "type": "STOCK",
       "category": "Enterprise software",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "IBM",
       "name": "IBM",
       "type": "STOCK",
       "category": "Enterprise technology",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "GE",
       "name": "GE Aerospace",
       "type": "STOCK",
       "category": "Industrials and aerospace",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "CAT",
       "name": "Caterpillar",
       "type": "STOCK",
       "category": "Industrials",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XOM",
       "name": "Exxon Mobil",
       "type": "STOCK",
       "category": "Energy",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "CVX",
       "name": "Chevron",
       "type": "STOCK",
       "category": "Energy",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "JNJ",
       "name": "Johnson & Johnson",
       "type": "STOCK",
       "category": "Healthcare",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "UNH",
       "name": "UnitedHealth Group",
       "type": "STOCK",
       "category": "Healthcare",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "KO",
       "name": "Coca-Cola",
       "type": "STOCK",
       "category": "Consumer staples",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "PEP",
       "name": "PepsiCo",
       "type": "STOCK",
       "category": "Consumer staples",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "DIS",
       "name": "Walt Disney",
       "type": "STOCK",
       "category": "Media and entertainment",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "ADBE",
       "name": "Adobe",
       "type": "STOCK",
       "category": "Software",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "INTC",
       "name": "Intel",
       "type": "STOCK",
       "category": "Semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "CSCO",
       "name": "Cisco Systems",
       "type": "STOCK",
       "category": "Networking",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "SPY",
       "name": "SPDR S&P 500 ETF Trust",
       "type": "ETF",
       "category": "US large-cap index",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "VOO",
       "name": "Vanguard S&P 500 ETF",
       "type": "ETF",
       "category": "US large-cap index",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "IVV",
       "name": "iShares Core S&P 500 ETF",
       "type": "ETF",
       "category": "US large-cap index",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "QQQ",
       "name": "Invesco QQQ Trust",
       "type": "ETF",
       "category": "Nasdaq-100 index",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "DIA",
       "name": "SPDR Dow Jones Industrial Average ETF Trust",
       "type": "ETF",
       "category": "Dow Jones index",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "IWM",
       "name": "iShares Russell 2000 ETF",
       "type": "ETF",
       "category": "US small-cap index",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "VTI",
       "name": "Vanguard Total Stock Market ETF",
       "type": "ETF",
       "category": "Total US equity market",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "SCHD",
       "name": "Schwab US Dividend Equity ETF",
       "type": "ETF",
       "category": "Dividend equity",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "VIG",
       "name": "Vanguard Dividend Appreciation ETF",
       "type": "ETF",
       "category": "Dividend growth",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLK",
       "name": "Technology Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Technology sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLF",
       "name": "Financial Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Financial sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLE",
       "name": "Energy Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Energy sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLV",
       "name": "Health Care Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Healthcare sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLI",
       "name": "Industrial Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Industrials sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLY",
       "name": "Consumer Discretionary Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Consumer discretionary sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLP",
       "name": "Consumer Staples Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Consumer staples sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLU",
       "name": "Utilities Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Utilities sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLB",
       "name": "Materials Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Materials sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLRE",
       "name": "Real Estate Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Real estate sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "XLC",
       "name": "Communication Services Select Sector SPDR Fund",
       "type": "ETF",
       "category": "Communication services sector",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "SMH",
       "name": "VanEck Semiconductor ETF",
       "type": "ETF",
       "category": "Semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "SOXX",
       "name": "iShares Semiconductor ETF",
       "type": "ETF",
       "category": "Semiconductors",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "IGV",
       "name": "iShares Expanded Tech-Software Sector ETF",
       "type": "ETF",
       "category": "Software",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "CLOU",
       "name": "Global X Cloud Computing ETF",
       "type": "ETF",
       "category": "Cloud computing",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "BOTZ",
       "name": "Global X Robotics & Artificial Intelligence ETF",
       "type": "ETF",
       "category": "Robotics and AI",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NASDAQ",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     },
     {
       "symbol": "ARKK",
       "name": "ARK Innovation ETF",
       "type": "ETF",
       "category": "Innovation thematic",
-      "zerodha_eligible": false
+      "zerodha_eligible": false,
+      "primary_exchange": "NYSE_ARCA",
+      "india_inx_exchange_supported": true,
+      "india_inx_symbol_verified": false,
+      "eligibility_notes": "India INX Global Access lists this US exchange as supported. Individual symbol availability has not been confirmed in the trading terminal."
     }
-  ]
+  ],
+  "exchange_support_check": {
+    "checked_on": "2026-10-31",
+    "source": "https://www.indiainxga.com/static/marketoperations/exchanges.aspx",
+    "supported_us_venues": [
+      "NASDAQ",
+      "NYSE",
+      "NYSE_ARCA"
+    ],
+    "meaning": "Exchange-level support only. This does not confirm an individual security is enabled for a specific account.",
+    "symbol_level_verification": "Not publicly available from the exchange directory; requires instrument search in the India INX Global Access or Zerodha Kite International terminal."
+  }
 }

@@ -68,14 +68,25 @@ def run_us_research(
     candidates = load_us_candidates(candidate_path)
     merged = {item["symbol"]: item for item in candidates}
     merged.update({item["symbol"]: item for item in verified})
-    universe = list(merged.values())
-    universe.sort(
-        key=lambda item: (
-            item["eligibility_status"] != "ZERODHA_VERIFIED",
-            item["type"],
-            item["symbol"],
-        )
-    )
+    # Verified instruments first. Within each eligibility tier, alternate
+    # stocks and ETFs so a small limit does not silently exclude ETFs.
+    universe = []
+    for status in ("ZERODHA_VERIFIED", "CANDIDATE_UNVERIFIED"):
+        bucket = [
+            item for item in merged.values()
+            if item["eligibility_status"] == status
+        ]
+        by_type = {
+            kind: sorted(
+                [item for item in bucket if item["type"] == kind],
+                key=lambda item: item["symbol"],
+            )
+            for kind in ("STOCK", "ETF")
+        }
+        for index in range(max(len(by_type["STOCK"]), len(by_type["ETF"]))):
+            for kind in ("STOCK", "ETF"):
+                if index < len(by_type[kind]):
+                    universe.append(by_type[kind][index])
     configured_count = len(universe)
     if limit > 0:
         universe = universe[:limit]
@@ -96,8 +107,12 @@ def run_us_research(
             "type": item["type"],
             "name": item.get("name", symbol),
             "category": item.get("category"),
+            "primary_exchange": item.get("primary_exchange"),
+            "india_inx_exchange_supported": item.get("india_inx_exchange_supported"),
+            "india_inx_symbol_verified": item.get("india_inx_symbol_verified", False),
             "eligibility_status": item["eligibility_status"],
             "zerodha_eligible": item["eligibility_status"] == "ZERODHA_VERIFIED",
+            "eligibility_notes": item.get("eligibility_notes"),
             "data_status": "unavailable",
             "research_score": None,
             "signal": "INSUFFICIENT_DATA",

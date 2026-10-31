@@ -1656,7 +1656,7 @@ def main():
     with tab6:
         us = result.get("us_research", {})
         st.subheader("US stocks and ETFs")
-        st.caption("Research combines a curated US-market candidate watchlist with symbols you verify in Zerodha Kite Global Stocks. Candidate status is not proof of Zerodha availability. Yahoo Finance supplies research data, not Zerodha quotes. US order execution and holdings sync are not implemented.")
+        st.caption("Research combines a curated US-market candidate watchlist with symbols you verify in Zerodha Kite Global Stocks. India INX exchange support is not the same as individual symbol or account eligibility. Yahoo Finance supplies research data, not Zerodha quotes. US order execution and holdings sync are not implemented.")
         status = us.get("status", "not_configured")
         if status == "error":
             st.error(f"US research failed: {us.get('message', 'Unknown error')}")
@@ -1672,7 +1672,7 @@ def main():
             m3.metric("Unverified candidates", us.get("candidate_count", 0))
             if us_rows:
                 frame = pd.DataFrame(us_rows)
-                columns = [c for c in ["symbol", "type", "eligibility_status", "category", "name", "price_usd", "change_1m_pct", "change_6m_pct", "volatility_annual_pct", "market_cap_usd", "expense_ratio", "dividend_yield_pct", "research_score", "signal", "data_status"] if c in frame.columns]
+                columns = [c for c in ["symbol", "type", "primary_exchange", "india_inx_exchange_supported", "india_inx_symbol_verified", "eligibility_status", "category", "name", "price_usd", "change_1m_pct", "change_6m_pct", "volatility_annual_pct", "market_cap_usd", "expense_ratio", "dividend_yield_pct", "research_score", "signal", "data_status"] if c in frame.columns]
                 frame = frame[columns].sort_values("research_score", ascending=False, na_position="last")
                 st.dataframe(frame, use_container_width=True, hide_index=True)
                 st.info("Verify a symbol in your Kite Global Stocks account before adding it to data/zerodha_us_universe.json with zerodha_eligible=true. Candidate records remain unverified.")
