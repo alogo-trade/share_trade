@@ -252,6 +252,9 @@ def run(
                     detail["eligible_for_llm"] = row.get("eligible_for_llm", False)
                     detail["jev_verdict"] = row.get("jev_verdict")
                     detail["jev_reason"] = row.get("jev_reason")
+                    detail["jev_probability"] = row.get("jev_probability")
+                    detail["jev_confidence"] = row.get("jev_confidence")
+                    detail["jev_model"] = row.get("jev_model")
                     row["decision_model"] = detail
 
     decision_summary = {
