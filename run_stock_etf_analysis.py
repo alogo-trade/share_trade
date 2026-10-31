@@ -13,7 +13,9 @@ def _prune_engine_logs(log_dir: Path, keep: int = 5) -> None:
     candidates = sorted(
         (
             path for path in log_dir.glob("stock_etf_*.log")
-            if path.is_file() and path.name != "stock_etf_engine_latest.log"
+            if path.is_file() and path.name not in {
+                "stock_etf_engine_latest.log", "stock_etf_latest.log"
+            }
         ),
         key=lambda path: (path.stat().st_mtime, path.name),
         reverse=True,
