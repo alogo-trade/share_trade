@@ -11,6 +11,7 @@ from stock_etf.us_engine import (
 def test_yahoo_dividend_yield_ratio_is_converted_to_percentage_points():
     assert _normalise_yield_pct(0.0602) == 6.02
     assert _normalise_yield_pct(0.006) == 0.6
+    assert _normalise_yield_pct(0.31) is None
     # Values above 1 are invalid Yahoo ratios, not pre-scaled percentages.
     assert _normalise_yield_pct(1.2) is None
     assert _normalise_yield_pct(6.02) is None
@@ -56,6 +57,9 @@ def test_us_research_emits_normalized_dividend_yield_from_yahoo(tmp_path, monkey
 
     instrument = result["instruments"][0]
     assert instrument["dividend_yield_pct"] == 0.6
+    assert instrument["dividend_yield_raw"] == 0.006
+    assert instrument["dividend_yield_raw_unit"] == "YAHOO_FRACTION"
+    assert instrument["dividend_yield_status"] == "VALID"
     assert instrument["currency"] == "USD"
     assert instrument["price_currency"] == "USD"
     assert instrument["sector"] == "Information Technology"
