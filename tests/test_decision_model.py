@@ -50,3 +50,33 @@ def test_batch_gate_attaches_decisions():
     assert summary["reject_count"] == 1
     assert rows[0]["decision_verdict"] == "PASS"
     assert rows[1]["eligible_for_llm"] is False
+
+
+
+def test_custom_rule_thresholds_are_applied():
+    from stock_etf.decision_model import DecisionRulesConfig
+
+    config = DecisionRulesConfig(
+        max_data_age_days=2,
+        min_data_confidence=90,
+        min_observations_short=75,
+        max_rsi_short=80,
+        max_distance_sma20_short_pct=15,
+    )
+    result = evaluate_candidate(
+        good(data_points=60, data_confidence=85, rsi14=82),
+        "SHORT_TERM",
+        date(2026, 10, 31),
+        config,
+    )
+    assert result["verdict"] == "HOLD"
+    assert result["features"]["minimum_observations"] == 75
+    assert len(result["reasons"]) >= 3
+
+
+def test_rules_configuration_is_in_batch_summary():
+    from stock_etf.decision_model import DecisionRulesConfig
+
+    config = DecisionRulesConfig(max_data_age_days=3)
+    summary = evaluate_candidates([good()], "SHORT_TERM", date(2026, 10, 31), config)
+    assert summary["rules_config"]["max_data_age_days"] == 3
