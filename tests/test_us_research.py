@@ -13,7 +13,8 @@ def test_provider_yield_is_not_published_without_dividend_history():
     result = _yield_metadata(0.31, None, 100.0, as_of="2026-10-31")
     assert result["dividend_yield_raw_unit"] == "YAHOO_UNIT_UNVERIFIED"
     assert result["dividend_yield_pct"] is None
-    assert result["dividend_yield_status"] == "UNVERIFIED_HISTORY_OR_PRICE"
+    assert result["dividend_yield_status"] == "HISTORY_UNAVAILABLE"
+    assert result["dividend_yield_history_status"] == "UNAVAILABLE"
 
 
 def test_us_ttm_yield_uses_actual_dividend_events():
@@ -25,6 +26,11 @@ def test_us_ttm_yield_uses_actual_dividend_events():
     )
     assert result["dividend_yield_pct"] == 2.0
     assert result["dividend_yield_status"] == "VERIFIED_TTM_CASH_DIVIDENDS"
+    assert result["dividend_yield_ttm_event_count"] == 2
+    assert result["dividend_yield_ttm_dividend_amount"] == 2.0
+    assert result["dividend_yield_calculation_price"] == 100.0
+    assert result["dividend_yield_period_start"] == "2025-10-31"
+    assert result["dividend_yield_period_end"] == "2026-10-31"
 
 
 def test_invalid_provider_yield_does_not_affect_history_calculation():
@@ -77,7 +83,8 @@ def test_us_research_emits_normalized_dividend_yield_from_yahoo(tmp_path, monkey
     assert instrument["dividend_yield_pct"] is None
     assert instrument["dividend_yield_raw"] == 0.006
     assert instrument["dividend_yield_raw_unit"] == "YAHOO_UNIT_UNVERIFIED"
-    assert instrument["dividend_yield_status"] == "UNVERIFIED_HISTORY_OR_PRICE"
+    assert instrument["dividend_yield_status"] == "HISTORY_FETCH_FAILED"
+    assert instrument["dividend_yield_history_status"] == "FETCH_FAILED"
     assert instrument["currency"] == "USD"
     assert instrument["price_currency"] == "USD"
     assert instrument["sector"] == "Information Technology"
@@ -133,3 +140,64 @@ def test_exchange_metadata_is_present_in_candidate_data():
     assert all(row.get("india_inx_exchange_supported") is True for row in rows)
     assert all(row.get("india_inx_symbol_verified") is False for row in rows)
     assert all(row.get("zerodha_eligible") is False for row in rows)
+
+
+def test_us_dividend_history_fetch_failure_is_distinct_from_empty_history():
+    from stock_etf.us_engine import _yield_metadata
+
+    failed = _yield_metadata(
+        0.31, None, 100.0, as_of="2026-10-31",
+        history_status="FETCH_FAILED", history_error="TimeoutError: request timed out",
+    )
+    assert failed["dividend_yield_status"] == "HISTORY_FETCH_FAILED"
+    assert failed["dividend_yield_pct"] is None
+
+    empty = _yield_metadata(
+        0.31, [], 100.0, as_of="2026-10-31",
+        history_status="FETCHED",
+    )
+    assert empty["dividend_yield_status"] == "NO_DIVIDENDS_IN_TRAILING_365D"
+    assert empty["dividend_yield_pct"] == 0.0
+
+
+def test_us_research_exports_dividend_coverage_and_history_failure(monkeypatch, tmp_path):
+    import pandas as pd
+    import stock_etf.us_engine as us_engine
+
+    candidates = tmp_path / "candidates.json"
+    candidates.write_text(json.dumps({"instruments": [
+        {"symbol": "FAIL", "type": "STOCK", "category": "Technology", "zerodha_eligible": False}
+    ]}), encoding="utf-8")
+
+    class FakeTicker:
+        @property
+        def news(self):
+            return []
+
+        def history(self, **kwargs):
+            return pd.DataFrame(
+                {"Close": [100.0, 101.0]},
+                index=pd.to_datetime(["2026-10-29", "2026-10-30"]),
+            )
+
+        @property
+        def info(self):
+            return {"dividendYield": 0.5}
+
+        @property
+        def dividends(self):
+            raise TimeoutError("Yahoo dividend endpoint timed out")
+
+    monkeypatch.setattr(us_engine.yf, "Ticker", lambda _symbol: FakeTicker())
+    result = run_us_research(
+        universe_path=str(tmp_path / "verified.json"),
+        candidate_path=str(candidates),
+        limit=1,
+    )
+
+    row = result["instruments"][0]
+    assert row["dividend_yield_status"] == "HISTORY_FETCH_FAILED"
+    assert row["dividend_yield_history_status"] == "FETCH_FAILED"
+    assert row["dividend_yield_calculation_price"] == 101.0
+    assert result["dividend_yield_coverage"]["history_fetch_failure_count"] == 1
+    assert result["dividend_yield_coverage"]["history_failure_samples"][0]["symbol"] == "FAIL"
