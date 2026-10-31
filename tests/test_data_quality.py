@@ -9,6 +9,7 @@ from stock_etf.portfolio import calculate_sector_exposure
 def test_yahoo_dividend_yield_ratio_is_normalised_and_invalid_values_rejected():
     assert _yield_pct(0.0602) == 6.02
     assert _yield_pct(0.006) == 0.6
+    assert _yield_pct(0.31) is None  # 31% is outside the accepted plausibility range.
     assert _yield_pct(6.02) is None
     assert _yield_pct(-0.01) is None
     assert _yield_pct(None) is None
@@ -165,6 +166,25 @@ def test_market_metadata_uses_known_exchange_currency_and_preserves_provider_uni
     assert nse["price_currency"] == "INR"
     assert nse["market_cap_currency"] == "INR"
     assert nse["sector_metadata_source"] == "UNAVAILABLE"
+    assert nse["dividend_yield_status"] == "MISSING"
+    assert nse["dividend_yield_raw_unit"] == "YAHOO_FRACTION"
+
+    implausible_yield = _merge_record(
+        {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
+        frame,
+        {"dividendYield": 0.31},
+    )
+    assert implausible_yield["dividend_yield_raw"] == 0.31
+    assert implausible_yield["dividend_yield_pct"] is None
+    assert implausible_yield["dividend_yield_status"] == "IMPLAUSIBLE_YIELD"
+
+    valid_yield = _merge_record(
+        {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
+        frame,
+        {"dividendYield": 0.006},
+    )
+    assert valid_yield["dividend_yield_pct"] == 0.6
+    assert valid_yield["dividend_yield_status"] == "VALID"
 
     provider_metadata = _merge_record(
         {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
