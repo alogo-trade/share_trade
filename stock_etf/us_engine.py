@@ -143,6 +143,7 @@ def _dividend_yield_coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "history_fetch_failure_count": history_counts.get("FETCH_FAILED", 0),
         "history_unavailable_count": history_counts.get("UNAVAILABLE", 0),
         "history_stale_cache_count": history_counts.get("STALE_CACHE", 0),
+        "history_circuit_breaker_skip_count": history_counts.get("CIRCUIT_BREAKER_OPEN", 0),
         "history_failure_samples": failed_symbols[:20],
     }
 
