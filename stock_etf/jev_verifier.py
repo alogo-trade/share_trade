@@ -11,8 +11,12 @@ import requests
 logger = logging.getLogger("stock_etf.jev")
 DEFAULT_MODEL = "typesafe/jev-1.14"
 DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
-CRITERIA = ["PASS", "REVIEW", "REJECT"]
-CHOICES = {"PASS", "REVIEW", "REJECT"}
+CRITERIA = {
+    "PASS": "Coherent setup supported by supplied facts, suitable for further research only.",
+    "REVIEW": "Mixed, incomplete, extended, or inconsistent evidence requiring review.",
+    "REJECT": "Material contradiction or clearly unsuitable setup for further research.",
+}
+CHOICES = set(CRITERIA)
 
 
 
@@ -151,7 +155,7 @@ def verify_candidates(
         row["jev_verdict"] = choice
         row["jev_probability"] = probability
         row["jev_confidence"] = confidence
-        row["jev_reason"] = {"PASS": "Coherent evidence supports escalation to further research.", "REVIEW": "Evidence is mixed, incomplete, extended, or uncertain.", "REJECT": "Evidence is materially contradictory or clearly unsuitable."}[choice]
+        row["jev_reason"] = CRITERIA[choice]
         row["jev_model"] = resolved_model
         counts[verdict] += 1
         decisions.append({"symbol": row.get("symbol"), "verdict": verdict,
