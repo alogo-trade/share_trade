@@ -18,7 +18,7 @@ from .portfolio import (
     portfolio_summary,
 )
 from .profile_store import load_profile
-from .ranking import diversify, rank
+from .ranking import diversify, partition_ranked, rank
 from .retrieval import retrieve_news
 from .review import local_challenge
 from .scoring import add_scores
@@ -310,6 +310,8 @@ def run(
         records,
         settings.ranking_limit,
     )
+    rank_partitions = partition_ranked(ranked)
+    actionable_ranked = rank_partitions["actionable"]
 
     shortlist = diversify(
         ranked,
@@ -578,10 +580,13 @@ def run(
         # --------------------------------------------------------------
 
         "local_ranking": {
+            # Quantitative ordering is retained independently of eligibility.
             "ranked": ranked,
-
+            "actionable": actionable_ranked,
+            "held": rank_partitions["held"],
+            "rejected": rank_partitions["rejected"],
+            "unevaluated": rank_partitions["unevaluated"],
             "shortlist": shortlist,
-
             "llm_candidates": candidates,
         },
 
