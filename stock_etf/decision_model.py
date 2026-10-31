@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 MODEL_VERSION = "transparent-decision-tree-v2"
 ELIGIBLE_SIGNALS = {"SETUP", "ACCUMULATE", "QUALITY_CANDIDATE"}
@@ -11,6 +12,7 @@ ELIGIBLE_SIGNALS = {"SETUP", "ACCUMULATE", "QUALITY_CANDIDATE"}
 @dataclass(frozen=True)
 class DecisionRulesConfig:
     max_data_age_days: int = 7
+    max_market_sessions_age: int = 2
     min_data_confidence: float = 70.0
     min_observations_short: int = 50
     min_observations_mid: int = 100
@@ -21,6 +23,8 @@ class DecisionRulesConfig:
     def __post_init__(self) -> None:
         if self.max_data_age_days < 0:
             raise ValueError("max_data_age_days must be non-negative")
+        if self.max_market_sessions_age < 0:
+            raise ValueError("max_market_sessions_age must be non-negative")
         if not 0 <= self.min_data_confidence <= 100:
             raise ValueError("min_data_confidence must be between 0 and 100")
         if min(self.min_observations_short, self.min_observations_mid, self.min_observations_long) < 1:
@@ -51,6 +55,33 @@ def _as_date(value: Any) -> date | None:
         return None
 
 
+def _market_local_date(row: dict[str, Any], fallback: date) -> date:
+    """Resolve the current date in the instrument's primary market timezone."""
+    exchange = str(row.get("exchange") or "").upper()
+    currency = str(row.get("currency") or "").upper()
+    timezone_name = (
+        "Asia/Kolkata" if exchange in {"NSE", "BSE"} or currency == "INR"
+        else "America/New_York" if currency == "USD" or exchange in {"NYSE", "NASDAQ", "NYSE_ARCA"}
+        else None
+    )
+    if not timezone_name:
+        return fallback
+    return datetime.now(ZoneInfo(timezone_name)).date()
+
+
+def _trading_session_age(last_date: date, current_date: date) -> int:
+    """Count elapsed weekdays after the last completed candle, excluding weekends."""
+    if last_date > current_date:
+        return -1
+    days = 0
+    cursor = last_date
+    while cursor < current_date:
+        cursor = date.fromordinal(cursor.toordinal() + 1)
+        if cursor.weekday() < 5:
+            days += 1
+    return days
+
+
 def evaluate_candidate(
     row: dict[str, Any],
     horizon: str,
@@ -58,7 +89,6 @@ def evaluate_candidate(
     config: DecisionRulesConfig | None = None,
 ) -> dict[str, Any]:
     """Auditable configurable pre-LLM gate. Checks data suitability, not returns."""
-    as_of = as_of or date.today()
     config = config or DecisionRulesConfig()
     reasons: list[str] = []
     signal = str(row.get("signal") or "").upper()
@@ -66,7 +96,9 @@ def evaluate_candidate(
     observations = int(row.get("data_points") or 0)
     confidence = float(row.get("data_confidence") or 0)
     last_date = _as_date(row.get("last_date"))
-    age_days = (as_of - last_date).days if last_date else None
+    market_as_of = _market_local_date(row, as_of or date.today())
+    age_days = (market_as_of - last_date).days if last_date else None
+    session_age = _trading_session_age(last_date, market_as_of) if last_date else None
     min_observations = config.minimum_observations(horizon)
 
     def result(verdict: str, messages: list[str]) -> dict[str, Any]:
@@ -77,7 +109,7 @@ def evaluate_candidate(
             "features": {
                 "signal": signal, "ranking_score": score, "data_points": observations,
                 "minimum_observations": min_observations, "data_confidence": confidence,
-                "data_age_days": age_days, "rsi14": row.get("rsi14"),
+                "data_age_days": age_days, "market_session_age": session_age, "market_as_of_date": market_as_of.isoformat(), "rsi14": row.get("rsi14"),
                 "distance_sma20_pct": row.get("distance_sma20_pct"),
             },
             "rules_config": rules_config_snapshot(config),
@@ -102,10 +134,19 @@ def evaluate_candidate(
     if last_date is None:
         reasons.append("Market-data date is missing or invalid.")
         verdict = "HOLD"
-    elif age_days is not None and (age_days < 0 or age_days > config.max_data_age_days):
+    elif age_days is not None and age_days < 0:
+        reasons.append("Market-data candle date is in the future relative to the instrument's local market date.")
+        verdict = "HOLD"
+    elif age_days is not None and age_days > config.max_data_age_days:
         reasons.append(
-            f"Market data is stale ({age_days} calendar days old; "
+            f"Market data is stale ({age_days} calendar days old in the instrument's market timezone; "
             f"maximum is {config.max_data_age_days})."
+        )
+        verdict = "HOLD"
+    if session_age is not None and session_age > config.max_market_sessions_age:
+        reasons.append(
+            f"Market data is {session_age} trading weekdays behind the instrument's local date; "
+            f"maximum is {config.max_market_sessions_age}."
         )
         verdict = "HOLD"
     if observations < min_observations:
