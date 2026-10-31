@@ -2,17 +2,38 @@ from datetime import date
 
 from stock_etf.scoring import add_scores
 from stock_etf.investor import add_position_context
-from stock_etf.market import _yield_pct
+from stock_etf.market import _trailing_dividend_yield_pct, _yield_metadata
 from stock_etf.portfolio import calculate_sector_exposure
 
 
-def test_yahoo_dividend_yield_ratio_is_normalised_and_invalid_values_rejected():
-    assert _yield_pct(0.0602) == 6.02
-    assert _yield_pct(0.006) == 0.6
-    assert _yield_pct(0.31) is None  # 31% is outside the accepted plausibility range.
-    assert _yield_pct(6.02) is None
-    assert _yield_pct(-0.01) is None
-    assert _yield_pct(None) is None
+def test_dividend_yield_is_calculated_from_trailing_cash_dividends():
+    history = [
+        {"date": "2026-01-15", "amount": 1.0},
+        {"date": "2026-07-15", "amount": 1.0},
+        {"date": "2025-10-01", "amount": 8.0},
+    ]
+    assert _trailing_dividend_yield_pct(
+        history, 100.0, as_of="2026-10-31"
+    ) == (2.0, "VERIFIED_TTM_CASH_DIVIDENDS")
+
+
+def test_provider_yield_is_never_scaled_without_verified_dividend_history():
+    result = _yield_metadata(0.14, None, 100.0, as_of="2026-10-31")
+    assert result["dividend_yield_pct"] is None
+    assert result["dividend_yield_status"] == "UNVERIFIED_HISTORY_OR_PRICE"
+    assert result["dividend_yield_provider_raw"] == 0.14
+
+
+def test_no_dividend_history_events_means_verified_zero_yield():
+    result = _yield_metadata(0.14, [], 100.0, as_of="2026-10-31")
+    assert result["dividend_yield_pct"] == 0.0
+    assert result["dividend_yield_status"] == "NO_DIVIDENDS_IN_TRAILING_365D"
+
+
+def test_extreme_ttm_yield_is_quarantined():
+    result = _yield_metadata(0.14, [{"date": "2026-05-01", "amount": 20.0}], 100.0, as_of="2026-10-31")
+    assert result["dividend_yield_pct"] is None
+    assert result["dividend_yield_status"] == "HIGH_YIELD_REVIEW"
 
 
 def test_stale_prices_are_not_rankable():
@@ -167,7 +188,7 @@ def test_market_metadata_uses_known_exchange_currency_and_preserves_provider_uni
     assert nse["market_cap_currency"] == "INR"
     assert nse["sector_metadata_source"] == "UNAVAILABLE"
     assert nse["dividend_yield_status"] == "MISSING"
-    assert nse["dividend_yield_raw_unit"] == "YAHOO_FRACTION"
+    assert nse["dividend_yield_raw_unit"] == "YAHOO_UNIT_UNVERIFIED"
 
     implausible_yield = _merge_record(
         {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
@@ -176,15 +197,18 @@ def test_market_metadata_uses_known_exchange_currency_and_preserves_provider_uni
     )
     assert implausible_yield["dividend_yield_raw"] == 0.31
     assert implausible_yield["dividend_yield_pct"] is None
-    assert implausible_yield["dividend_yield_status"] == "IMPLAUSIBLE_YIELD"
+    assert implausible_yield["dividend_yield_status"] == "UNVERIFIED_HISTORY_OR_PRICE"
 
-    valid_yield = _merge_record(
+    verified_yield = _merge_record(
         {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
         frame,
-        {"dividendYield": 0.006},
+        {"dividendYield": 0.006, "__dividend_history": [
+            {"date": "2026-01-15", "amount": 0.3},
+            {"date": "2026-07-15", "amount": 0.3},
+        ]},
     )
-    assert valid_yield["dividend_yield_pct"] == 0.6
-    assert valid_yield["dividend_yield_status"] == "VALID"
+    assert verified_yield["dividend_yield_pct"] == 0.6
+    assert verified_yield["dividend_yield_status"] == "VERIFIED_TTM_CASH_DIVIDENDS"
 
     provider_metadata = _merge_record(
         {"symbol": "ABC", "type": "STOCK", "exchange": "NSE"},
