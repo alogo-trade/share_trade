@@ -8,10 +8,9 @@ from typing import Any
 import numpy as np
 import yfinance as yf
 
+from .market import _yield_metadata as _shared_yield_metadata
+
 logger = logging.getLogger("stock_etf.us")
-
-
-MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT = 15.0
 
 
 def _normalise_yield_pct(value: Any) -> float | None:
@@ -24,47 +23,22 @@ def _yield_metadata(
     dividend_history: Any = None,
     price: Any = None,
     as_of: Any = None,
+    history_status: str | None = None,
+    history_error: str | None = None,
+    price_date: Any = None,
+    currency: str | None = None,
 ) -> dict[str, Any]:
-    """Publish only TTM yield derived from actual dividend events and price."""
-    try:
-        raw = float(provider_value) if provider_value is not None and not isinstance(provider_value, bool) else None
-        if raw is not None and not np.isfinite(raw):
-            raw = None
-    except (TypeError, ValueError):
-        raw = None
-
-    try:
-        current_price = float(price)
-        if dividend_history is None or not np.isfinite(current_price) or current_price <= 0:
-            raise ValueError("dividend history or valid price unavailable")
-        end = np.datetime64(str(as_of)[:10], "D") if as_of is not None else np.datetime64("today", "D")
-        start = end - np.timedelta64(365, "D")
-        paid = []
-        for event_date, amount in dividend_history:
-            event_day = np.datetime64(event_date, "D")
-            amount = float(amount)
-            if np.isfinite(amount) and amount > 0 and start < event_day <= end:
-                paid.append(amount)
-        if not paid:
-            normalized, status = 0.0, "NO_DIVIDENDS_IN_TRAILING_365D"
-        else:
-            calculated = round(sum(paid) / current_price * 100, 2)
-            if calculated > MAX_PLAUSIBLE_DIVIDEND_YIELD_PCT:
-                normalized, status = None, "HIGH_YIELD_REVIEW"
-            else:
-                normalized, status = calculated, "VERIFIED_TTM_CASH_DIVIDENDS"
-    except Exception:
-        normalized, status = None, "UNVERIFIED_HISTORY_OR_PRICE"
-
-    return {
-        "dividend_yield_provider_raw": raw,
-        "dividend_yield_provider_unit": "YAHOO_UNIT_UNVERIFIED",
-        "dividend_yield_raw": raw,
-        "dividend_yield_raw_unit": "YAHOO_UNIT_UNVERIFIED",
-        "dividend_yield_pct": normalized,
-        "dividend_yield_status": status,
-        "dividend_yield_method": "TRAILING_365D_DIVIDENDS_OVER_LATEST_CLOSE",
-    }
+    """Use the shared auditable TTM cash-dividend calculation."""
+    return _shared_yield_metadata(
+        provider_value,
+        dividend_history,
+        price,
+        as_of=as_of,
+        history_status=history_status,
+        history_error=history_error,
+        price_date=price_date,
+        currency=currency,
+    )
 
 
 def _sector_from_category(category: Any, instrument_type: str) -> str | None:
@@ -144,6 +118,32 @@ def load_us_candidates(path: str) -> list[dict[str, Any]]:
         [row for row in rows if row.get("zerodha_eligible") is not True],
         "CANDIDATE_UNVERIFIED",
     )
+
+
+def _dividend_yield_coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize dividend calculation and retrieval coverage without hiding failures."""
+    status_counts: dict[str, int] = {}
+    history_counts: dict[str, int] = {}
+    failed_symbols = []
+    for row in rows:
+        status = str(row.get("dividend_yield_status") or "MISSING")
+        history_status = str(row.get("dividend_yield_history_status") or "UNAVAILABLE")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        history_counts[history_status] = history_counts.get(history_status, 0) + 1
+        if history_status not in {"FETCHED"}:
+            failed_symbols.append({
+                "symbol": row.get("symbol"),
+                "history_status": history_status,
+                "reason": row.get("dividend_yield_history_error"),
+            })
+    return {
+        "instrument_count": len(rows),
+        "yield_status_counts": status_counts,
+        "history_status_counts": history_counts,
+        "history_fetch_failure_count": history_counts.get("FETCH_FAILED", 0),
+        "history_unavailable_count": history_counts.get("UNAVAILABLE", 0),
+        "history_failure_samples": failed_symbols[:20],
+    }
 
 
 def run_us_research(
@@ -260,19 +260,29 @@ def run_us_research(
             )
             row["expense_ratio"] = info.get("annualReportExpenseRatio")
             dividend_history = None
+            dividend_history_status = "FETCH_FAILED"
+            dividend_history_error = None
             try:
                 dividend_series = ticker.dividends
+                if dividend_series is None:
+                    raise ValueError("Yahoo returned no dividend-history series")
                 dividend_history = [
                     (str(event_date)[:10], float(amount))
-                    for event_date, amount in (dividend_series.items() if dividend_series is not None else [])
+                    for event_date, amount in dividend_series.items()
                 ]
+                dividend_history_status = "FETCHED"
             except Exception as dividend_exc:
+                dividend_history_error = f"{type(dividend_exc).__name__}: {dividend_exc}"[:240]
                 logger.warning("US dividend history unavailable for %s: %s", symbol, dividend_exc)
             row.update(_yield_metadata(
                 info.get("dividendYield"),
                 dividend_history,
                 row.get("price"),
                 as_of=history.index[-1] if not history.empty else None,
+                history_status=dividend_history_status,
+                history_error=dividend_history_error,
+                price_date=history.index[-1] if not history.empty else None,
+                currency=currency,
             ))
             one, six = row.get("change_1m_pct"), row.get("change_6m_pct")
             if one is not None or six is not None:
@@ -334,6 +344,7 @@ def run_us_research(
             ),
         },
         "price_source": "Yahoo Finance; not Zerodha quotes",
+        "dividend_yield_coverage": _dividend_yield_coverage(results),
         "instruments": results,
         "news": news,
     }
