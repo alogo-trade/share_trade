@@ -2,38 +2,46 @@ import json
 
 from stock_etf.us_engine import (
     _normalise_yield_pct,
+    _yield_metadata,
     load_us_candidates,
     load_us_universe,
     run_us_research,
 )
 
 
-def test_yahoo_dividend_yield_ratio_is_converted_to_percentage_points():
-    assert _normalise_yield_pct(0.0602) == 6.02
-    assert _normalise_yield_pct(0.006) == 0.6
-    assert _normalise_yield_pct(0.31) is None
-    # Values above 1 are invalid Yahoo ratios, not pre-scaled percentages.
-    assert _normalise_yield_pct(1.2) is None
-    assert _normalise_yield_pct(6.02) is None
-
-
-def test_implausible_yahoo_yield_is_retained_as_raw_but_not_published():
-    from stock_etf.us_engine import _yield_metadata
-
-    result = _yield_metadata(0.31)
-    assert result["dividend_yield_raw"] == 0.31
-    assert result["dividend_yield_raw_unit"] == "YAHOO_FRACTION"
+def test_provider_yield_is_not_published_without_dividend_history():
+    result = _yield_metadata(0.31, None, 100.0, as_of="2026-10-31")
+    assert result["dividend_yield_raw_unit"] == "YAHOO_UNIT_UNVERIFIED"
     assert result["dividend_yield_pct"] is None
-    assert result["dividend_yield_status"] == "IMPLAUSIBLE_YIELD"
+    assert result["dividend_yield_status"] == "UNVERIFIED_HISTORY_OR_PRICE"
 
 
-def test_invalid_yahoo_dividend_yield_values_are_ignored():
-    assert _normalise_yield_pct(None) is None
-    assert _normalise_yield_pct(True) is None
-    assert _normalise_yield_pct(float("nan")) is None
-    assert _normalise_yield_pct(float("inf")) is None
-    assert _normalise_yield_pct(-0.01) is None
-    assert _normalise_yield_pct("not-a-number") is None
+def test_us_ttm_yield_uses_actual_dividend_events():
+    result = _yield_metadata(
+        0.31,
+        [("2026-01-15", 1.0), ("2026-07-15", 1.0)],
+        100.0,
+        as_of="2026-10-31",
+    )
+    assert result["dividend_yield_pct"] == 2.0
+    assert result["dividend_yield_status"] == "VERIFIED_TTM_CASH_DIVIDENDS"
+
+
+def test_invalid_provider_yield_does_not_affect_history_calculation():
+    result = _yield_metadata(
+        float("nan"),
+        [("2026-01-15", 0.5)],
+        100.0,
+        as_of="2026-10-31",
+    )
+    assert result["dividend_yield_pct"] == 0.5
+    assert result["dividend_yield_provider_raw"] is None
+
+
+def test_normalise_yield_does_not_assume_yahoo_units():
+    assert _normalise_yield_pct(0.006) is None
+    assert _normalise_yield_pct(0.31) is None
+    assert _normalise_yield_pct(1.2) is None
 
 
 def test_us_research_emits_normalized_dividend_yield_from_yahoo(tmp_path, monkeypatch):
@@ -66,10 +74,10 @@ def test_us_research_emits_normalized_dividend_yield_from_yahoo(tmp_path, monkey
     )
 
     instrument = result["instruments"][0]
-    assert instrument["dividend_yield_pct"] == 0.6
+    assert instrument["dividend_yield_pct"] is None
     assert instrument["dividend_yield_raw"] == 0.006
-    assert instrument["dividend_yield_raw_unit"] == "YAHOO_FRACTION"
-    assert instrument["dividend_yield_status"] == "VALID"
+    assert instrument["dividend_yield_raw_unit"] == "YAHOO_UNIT_UNVERIFIED"
+    assert instrument["dividend_yield_status"] == "UNVERIFIED_HISTORY_OR_PRICE"
     assert instrument["currency"] == "USD"
     assert instrument["price_currency"] == "USD"
     assert instrument["sector"] == "Information Technology"
