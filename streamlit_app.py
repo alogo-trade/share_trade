@@ -1859,6 +1859,11 @@ def main():
             ])
             st.dataframe(decision_frame, use_container_width=True, hide_index=True)
 
+        jev_decisions = jev_status.get("decisions", [])
+        if jev_decisions:
+            st.markdown("**Jev evaluation details**")
+            st.dataframe(pd.DataFrame(jev_decisions), use_container_width=True, hide_index=True)
+
         st.divider()
         st.subheader("Diagnostics")
 
