@@ -31,6 +31,40 @@ def _normalise_yield_pct(value: Any) -> float | None:
     return round(number * 100, 2)
 
 
+def _sector_from_category(category: Any, instrument_type: str) -> str | None:
+    """Map the curated US watchlist category to a broad sector hint."""
+    text = str(category or "").strip().lower()
+    kind = str(instrument_type or "").upper()
+    if not text:
+        return None
+
+    # Order matters for mixed category labels such as e-commerce and cloud.
+    rules = [
+        ("Consumer Discretionary", ("e-commerce", "automotive", "consumer discretionary")),
+        ("Financials", ("financial", "banking", "payment")),
+        ("Health Care", ("healthcare", "health care")),
+        ("Consumer Staples", ("consumer staples",)),
+        ("Communication Services", ("internet", "media", "streaming", "entertainment", "communication")),
+        ("Energy", ("energy",)),
+        ("Industrials", ("industrial", "aerospace")),
+        ("Utilities", ("utilities",)),
+        ("Materials", ("materials",)),
+        ("Real Estate", ("real estate",)),
+        ("Information Technology", (
+            "technology", "software", "semiconductor", "cloud", "hardware",
+            "networking", "analytics", "robotics", "artificial intelligence",
+        )),
+    ]
+    for sector, phrases in rules:
+        if any(phrase in text for phrase in phrases):
+            return sector
+
+    # Broad-market, dividend, and thematic ETFs do not imply a single sector.
+    if kind == "ETF":
+        return None
+    return None
+
+
 def _read_rows(path: str) -> list[dict[str, Any]]:
     source = Path(path)
     if not source.exists():
@@ -161,12 +195,29 @@ def run_us_research(
                         2,
                     )
                 row["data_status"] = "live"
-            for key in ("marketCap", "sector", "industry", "annualReportExpenseRatio"):
-                output_key = {
-                    "marketCap": "market_cap_usd",
-                    "annualReportExpenseRatio": "expense_ratio",
-                }.get(key, key)
-                row[output_key] = info.get(key)
+            currency = str(info.get("currency") or item.get("currency") or "USD").strip().upper()
+            yahoo_sector = info.get("sector")
+            curated_sector = _sector_from_category(item.get("category"), item.get("type"))
+            sector = yahoo_sector or curated_sector
+            market_cap = info.get("marketCap")
+            row["currency"] = currency
+            row["price_currency"] = currency
+            row["market_cap_currency"] = currency if market_cap is not None else None
+            row["market_cap"] = market_cap
+            row["market_cap_usd"] = market_cap if currency == "USD" else None
+            row["sector"] = sector
+            row["sector_metadata_source"] = (
+                "YAHOO_FINANCE" if yahoo_sector
+                else "CURATED_CATEGORY" if curated_sector
+                else "UNAVAILABLE"
+            )
+            row["industry"] = info.get("industry") or item.get("industry")
+            row["industry_metadata_source"] = (
+                "YAHOO_FINANCE" if info.get("industry")
+                else "CURATED_CATEGORY" if item.get("category")
+                else "UNAVAILABLE"
+            )
+            row["expense_ratio"] = info.get("annualReportExpenseRatio")
             if info.get("dividendYield") is not None:
                 row["dividend_yield_pct"] = _normalise_yield_pct(info["dividendYield"])
             one, six = row.get("change_1m_pct"), row.get("change_6m_pct")
