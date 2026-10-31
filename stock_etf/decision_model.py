@@ -18,6 +18,18 @@ class DecisionRulesConfig:
     max_rsi_short: float = 85.0
     max_distance_sma20_short_pct: float = 20.0
 
+    def __post_init__(self) -> None:
+        if self.max_data_age_days < 0:
+            raise ValueError("max_data_age_days must be non-negative")
+        if not 0 <= self.min_data_confidence <= 100:
+            raise ValueError("min_data_confidence must be between 0 and 100")
+        if min(self.min_observations_short, self.min_observations_mid, self.min_observations_long) < 1:
+            raise ValueError("minimum observation counts must be positive")
+        if not 0 <= self.max_rsi_short <= 100:
+            raise ValueError("max_rsi_short must be between 0 and 100")
+        if self.max_distance_sma20_short_pct < 0:
+            raise ValueError("max_distance_sma20_short_pct must be non-negative")
+
     def minimum_observations(self, horizon: str) -> int:
         return {
             "SHORT_TERM": self.min_observations_short,
