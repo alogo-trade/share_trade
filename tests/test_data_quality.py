@@ -65,3 +65,18 @@ def test_sector_exposure_excludes_etfs_and_unknown_sectors():
     }
     exposure = calculate_sector_exposure(records, holdings)
     assert exposure == {"Technology": 100.0}
+
+def test_stale_cache_is_not_rankable_even_when_market_date_looks_recent():
+    rows = [{
+        "symbol": "CACHEOLD", "instrument_type": "STOCK", "data_points": 500,
+        "data_confidence": 100, "last_date": "2026-10-30",
+        "cache_status": "STALE_CACHE",
+        "return_1w_pct": 5, "return_1m_pct": 10,
+        "distance_sma20_pct": 2, "distance_sma50_pct": 3,
+        "volume_ratio_20d": 1.5, "rsi14": 60,
+    }]
+    add_scores(rows, "SHORT_TERM", as_of=date(2026, 10, 31))
+    assert rows[0]["signal"] == "STALE_DATA"
+    assert rows[0]["ranking_score"] is None
+    assert rows[0]["data_quality_status"] == "STALE_OR_UNKNOWN"
+
