@@ -1685,9 +1685,29 @@ def main():
 
     with tab5:
 
-        st.subheader(
-            "Diagnostics"
-        )
+        st.subheader("Decision-model verification")
+        decision_model = result.get("decision_model", {})
+        dm1, dm2, dm3, dm4 = st.columns(4)
+        dm1.metric("Evaluated", decision_model.get("evaluated_count", 0))
+        dm2.metric("PASS", decision_model.get("pass_count", 0))
+        dm3.metric("HOLD", decision_model.get("hold_count", 0))
+        dm4.metric("REJECT", decision_model.get("reject_count", 0))
+        st.caption(decision_model.get("description", "Decision-model summary not present in this result."))
+        decisions = decision_model.get("decisions", [])
+        if decisions:
+            decision_frame = pd.DataFrame([
+                {
+                    "Symbol": item.get("symbol"),
+                    "Verdict": item.get("verdict"),
+                    "Eligible for LLM": item.get("eligible_for_llm"),
+                    "Reasons": "; ".join(item.get("reasons", [])),
+                }
+                for item in decisions
+            ])
+            st.dataframe(decision_frame, use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.subheader("Diagnostics")
 
         st.json(
             result.get(

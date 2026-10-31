@@ -90,6 +90,8 @@ def add_position_context(
         row
         for row in rows
         if row.get("ranking_score") is not None
+        and row.get("decision_verdict") == "PASS"
+        and row.get("signal") in {"SETUP", "ACCUMULATE", "QUALITY_CANDIDATE"}
     ]
 
     weights = []
@@ -136,11 +138,11 @@ def add_position_context(
         ):
             score = 0.0
 
-        weight = (
-            score / total
-            if total
-            else 0.0
+        is_eligible = (
+            row.get("decision_verdict") == "PASS"
+            and row.get("signal") in {"SETUP", "ACCUMULATE", "QUALITY_CANDIDATE"}
         )
+        weight = score / total if total and is_eligible else 0.0
 
         row[
             "suggested_weight_pct"

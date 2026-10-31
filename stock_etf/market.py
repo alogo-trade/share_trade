@@ -27,6 +27,12 @@ def _safe_float(x):
 def _pct(x):
     v=_safe_float(x); return None if v is None else v*100
 
+def _yield_pct(x):
+    """Normalise Yahoo yield values supplied as either ratios or percentages."""
+    v=_safe_float(x)
+    if v is None: return None
+    return v*100 if abs(v)<=1 else v
+
 def _max_drawdown(close):
     s=close.dropna()
     return _safe_float((s/s.cummax()-1).min()*100) if not s.empty else None
@@ -123,8 +129,12 @@ def _merge_record(row, df, info):
     if df.empty:return {'symbol':symbol,'yf_symbol':ysym,'instrument_type':typ,'data_confidence':0,'error':'no valid close data'}
     tech=_technicals(df)
     rec={'symbol':symbol,'yf_symbol':ysym,'instrument_type':typ,'name':info.get('longName') or info.get('shortName') or row.get('name') or symbol,'sector':info.get('sector') or row.get('sector'),'industry':info.get('industry') or row.get('industry'),'currency':info.get('currency'),
-         'market_cap_inr':_safe_float(info.get('marketCap')),'beta':_safe_float(info.get('beta')),'pe':_safe_float(info.get('trailingPE')),'forward_pe':_safe_float(info.get('forwardPE')),'pb':_safe_float(info.get('priceToBook')),'ev_ebitda':_safe_float(info.get('enterpriseToEbitda')),'dividend_yield_pct':_pct(info.get('dividendYield')),'roe_pct':_pct(info.get('returnOnEquity')),'roa_pct':_pct(info.get('returnOnAssets')),'profit_margin_pct':_pct(info.get('profitMargins')),'operating_margin_pct':_pct(info.get('operatingMargins')),'revenue_growth_pct':_pct(info.get('revenueGrowth')),'earnings_growth_pct':_pct(info.get('earningsGrowth')),'debt_to_equity':_safe_float(info.get('debtToEquity')),'free_cashflow':_safe_float(info.get('freeCashflow')),'total_cash':_safe_float(info.get('totalCash')),'total_debt':_safe_float(info.get('totalDebt')),'fund_family':info.get('fundFamily'),'expense_ratio':_safe_float(info.get('annualReportExpenseRatio')),'tracking_error':_safe_float(info.get('trackingError')),'category':info.get('category'),'fund_holdings':_safe_float(info.get('holdingsCount')),**tech}
-    required=['price','return_1w_pct','return_1m_pct','volatility_pct','max_drawdown_pct']; rec['data_confidence']=round(sum(rec.get(k) is not None for k in required)/len(required)*100); return rec
+         'market_cap_inr':_safe_float(info.get('marketCap')),'beta':_safe_float(info.get('beta')),'pe':_safe_float(info.get('trailingPE')),'forward_pe':_safe_float(info.get('forwardPE')),'pb':_safe_float(info.get('priceToBook')),'ev_ebitda':_safe_float(info.get('enterpriseToEbitda')),'dividend_yield_pct':_yield_pct(info.get('dividendYield')),'roe_pct':_pct(info.get('returnOnEquity')),'roa_pct':_pct(info.get('returnOnAssets')),'profit_margin_pct':_pct(info.get('profitMargins')),'operating_margin_pct':_pct(info.get('operatingMargins')),'revenue_growth_pct':_pct(info.get('revenueGrowth')),'earnings_growth_pct':_pct(info.get('earningsGrowth')),'debt_to_equity':_safe_float(info.get('debtToEquity')),'free_cashflow':_safe_float(info.get('freeCashflow')),'total_cash':_safe_float(info.get('totalCash')),'total_debt':_safe_float(info.get('totalDebt')),'fund_family':info.get('fundFamily'),'expense_ratio':_safe_float(info.get('annualReportExpenseRatio')),'tracking_error':_safe_float(info.get('trackingError')),'category':info.get('category'),'fund_holdings':_safe_float(info.get('holdingsCount')),**tech}
+    required=['price','return_1w_pct','return_1m_pct','volatility_pct','max_drawdown_pct']
+    completeness=sum(rec.get(k) is not None for k in required)/len(required)
+    sample_coverage=min(int(rec.get('data_points') or 0)/126,1.0)
+    rec['data_confidence']=round((0.6*completeness+0.4*sample_coverage)*100)
+    return rec
 
 def liquidity_screen(universe,max_instruments=250,workers=3):
     if len(universe)<=max_instruments:return universe
