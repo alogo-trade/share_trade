@@ -440,6 +440,50 @@ def _metadata_text(value):
     return None if not text or text.lower() in {"none", "nan", "unknown", "n/a"} else text
 
 
+def _normalise_history_columns(df, symbol=None):
+    """Flatten yfinance single/multi-ticker columns into standard OHLCV names."""
+    if df is None or df.empty:
+        return df
+
+    frame = df.copy()
+    if isinstance(frame.columns, pd.MultiIndex):
+        # yfinance may return either (Ticker, Price) or (Price, Ticker),
+        # including for a one-symbol download.
+        if symbol:
+            for level in range(frame.columns.nlevels):
+                if symbol in frame.columns.get_level_values(level):
+                    frame = frame.xs(symbol, axis=1, level=level, drop_level=True)
+                    break
+
+        # If another column level remains, select the level containing OHLCV.
+        if isinstance(frame.columns, pd.MultiIndex):
+            expected = {"open", "high", "low", "close", "adj close", "volume"}
+            for level in range(frame.columns.nlevels):
+                values = {
+                    str(value).strip().lower()
+                    for value in frame.columns.get_level_values(level)
+                }
+                if values & expected:
+                    frame.columns = frame.columns.get_level_values(level)
+                    break
+
+    # Normalize case and whitespace without changing the underlying data.
+    if not isinstance(frame.columns, pd.MultiIndex):
+        rename = {}
+        for column in frame.columns:
+            normalized = str(column).strip().lower()
+            canonical = {
+                "open": "Open", "high": "High", "low": "Low",
+                "close": "Close", "adj close": "Adj Close",
+                "volume": "Volume",
+            }.get(normalized)
+            if canonical and column != canonical:
+                rename[column] = canonical
+        if rename:
+            frame = frame.rename(columns=rename)
+    return frame
+
+
 def _merge_record(row, df, info):
     info = info if isinstance(info, dict) else {}
     symbol = str(row.get("symbol", "")).upper()
@@ -450,6 +494,17 @@ def _merge_record(row, df, info):
         return {
             "symbol": symbol, "yf_symbol": ysym, "instrument_type": typ,
             "exchange": exchange, "data_confidence": 0, "error": "no historical data",
+        }
+    df = _normalise_history_columns(df, ysym)
+    if df is None or df.empty or "Close" not in df.columns:
+        logger.warning(
+            "Skipping %s: historical data has no usable Close column (columns=%s).",
+            ysym, list(df.columns) if df is not None else None,
+        )
+        return {
+            "symbol": symbol, "yf_symbol": ysym, "instrument_type": typ,
+            "exchange": exchange, "data_confidence": 0,
+            "error": "historical data missing Close column",
         }
     df = df.dropna(subset=["Close"])
     if df.empty:
