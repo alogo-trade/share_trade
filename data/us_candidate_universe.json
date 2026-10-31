@@ -1,0 +1,474 @@
+{
+  "schema_version": 1,
+  "description": "Curated US-market discovery watchlist for research. These symbols are not confirmed as available or eligible in Zerodha Kite Global Stocks.",
+  "eligibility_policy": "All rows are unverified research candidates. Move a symbol to data/zerodha_us_universe.json and set zerodha_eligible=true only after checking it in the user's Kite Global Stocks account.",
+  "sources": [
+    "Curated large-cap US equities for broad sector coverage",
+    "Major US-listed broad-market, sector, dividend, semiconductor and thematic ETFs",
+    "Not an exhaustive US exchange listing or an official Zerodha eligibility feed"
+  ],
+  "instruments": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple",
+      "type": "STOCK",
+      "category": "Technology hardware",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft",
+      "type": "STOCK",
+      "category": "Software and cloud",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA",
+      "type": "STOCK",
+      "category": "Semiconductors and AI",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon",
+      "type": "STOCK",
+      "category": "E-commerce and cloud",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet",
+      "type": "STOCK",
+      "category": "Internet and AI",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "META",
+      "name": "Meta Platforms",
+      "type": "STOCK",
+      "category": "Internet platforms",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "AVGO",
+      "name": "Broadcom",
+      "type": "STOCK",
+      "category": "Semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "TSLA",
+      "name": "Tesla",
+      "type": "STOCK",
+      "category": "Automotive and energy",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "BRK-B",
+      "name": "Berkshire Hathaway",
+      "type": "STOCK",
+      "category": "Diversified financials",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "LLY",
+      "name": "Eli Lilly",
+      "type": "STOCK",
+      "category": "Healthcare",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "JPM",
+      "name": "JPMorgan Chase",
+      "type": "STOCK",
+      "category": "Banking",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "V",
+      "name": "Visa",
+      "type": "STOCK",
+      "category": "Payments",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "MA",
+      "name": "Mastercard",
+      "type": "STOCK",
+      "category": "Payments",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "WMT",
+      "name": "Walmart",
+      "type": "STOCK",
+      "category": "Consumer staples retail",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "COST",
+      "name": "Costco",
+      "type": "STOCK",
+      "category": "Consumer staples retail",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "NFLX",
+      "name": "Netflix",
+      "type": "STOCK",
+      "category": "Media and streaming",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "ORCL",
+      "name": "Oracle",
+      "type": "STOCK",
+      "category": "Enterprise software",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "CRM",
+      "name": "Salesforce",
+      "type": "STOCK",
+      "category": "Enterprise software",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "AMD",
+      "name": "Advanced Micro Devices",
+      "type": "STOCK",
+      "category": "Semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "QCOM",
+      "name": "Qualcomm",
+      "type": "STOCK",
+      "category": "Semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "MU",
+      "name": "Micron Technology",
+      "type": "STOCK",
+      "category": "Memory semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "AMAT",
+      "name": "Applied Materials",
+      "type": "STOCK",
+      "category": "Semiconductor equipment",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "LRCX",
+      "name": "Lam Research",
+      "type": "STOCK",
+      "category": "Semiconductor equipment",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "TSM",
+      "name": "Taiwan Semiconductor Manufacturing",
+      "type": "STOCK",
+      "category": "Semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "ASML",
+      "name": "ASML Holding",
+      "type": "STOCK",
+      "category": "Semiconductor equipment",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "PLTR",
+      "name": "Palantir Technologies",
+      "type": "STOCK",
+      "category": "Software and analytics",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "NOW",
+      "name": "ServiceNow",
+      "type": "STOCK",
+      "category": "Enterprise software",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "IBM",
+      "name": "IBM",
+      "type": "STOCK",
+      "category": "Enterprise technology",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "GE",
+      "name": "GE Aerospace",
+      "type": "STOCK",
+      "category": "Industrials and aerospace",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "CAT",
+      "name": "Caterpillar",
+      "type": "STOCK",
+      "category": "Industrials",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XOM",
+      "name": "Exxon Mobil",
+      "type": "STOCK",
+      "category": "Energy",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "CVX",
+      "name": "Chevron",
+      "type": "STOCK",
+      "category": "Energy",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "JNJ",
+      "name": "Johnson & Johnson",
+      "type": "STOCK",
+      "category": "Healthcare",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "UNH",
+      "name": "UnitedHealth Group",
+      "type": "STOCK",
+      "category": "Healthcare",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "KO",
+      "name": "Coca-Cola",
+      "type": "STOCK",
+      "category": "Consumer staples",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "PEP",
+      "name": "PepsiCo",
+      "type": "STOCK",
+      "category": "Consumer staples",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "DIS",
+      "name": "Walt Disney",
+      "type": "STOCK",
+      "category": "Media and entertainment",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "ADBE",
+      "name": "Adobe",
+      "type": "STOCK",
+      "category": "Software",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "INTC",
+      "name": "Intel",
+      "type": "STOCK",
+      "category": "Semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "CSCO",
+      "name": "Cisco Systems",
+      "type": "STOCK",
+      "category": "Networking",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "SPY",
+      "name": "SPDR S&P 500 ETF Trust",
+      "type": "ETF",
+      "category": "US large-cap index",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "VOO",
+      "name": "Vanguard S&P 500 ETF",
+      "type": "ETF",
+      "category": "US large-cap index",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "IVV",
+      "name": "iShares Core S&P 500 ETF",
+      "type": "ETF",
+      "category": "US large-cap index",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "QQQ",
+      "name": "Invesco QQQ Trust",
+      "type": "ETF",
+      "category": "Nasdaq-100 index",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "DIA",
+      "name": "SPDR Dow Jones Industrial Average ETF Trust",
+      "type": "ETF",
+      "category": "Dow Jones index",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "IWM",
+      "name": "iShares Russell 2000 ETF",
+      "type": "ETF",
+      "category": "US small-cap index",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "VTI",
+      "name": "Vanguard Total Stock Market ETF",
+      "type": "ETF",
+      "category": "Total US equity market",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "SCHD",
+      "name": "Schwab US Dividend Equity ETF",
+      "type": "ETF",
+      "category": "Dividend equity",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "VIG",
+      "name": "Vanguard Dividend Appreciation ETF",
+      "type": "ETF",
+      "category": "Dividend growth",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLK",
+      "name": "Technology Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Technology sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLF",
+      "name": "Financial Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Financial sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLE",
+      "name": "Energy Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Energy sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLV",
+      "name": "Health Care Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Healthcare sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLI",
+      "name": "Industrial Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Industrials sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLY",
+      "name": "Consumer Discretionary Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Consumer discretionary sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLP",
+      "name": "Consumer Staples Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Consumer staples sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLU",
+      "name": "Utilities Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Utilities sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLB",
+      "name": "Materials Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Materials sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLRE",
+      "name": "Real Estate Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Real estate sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "XLC",
+      "name": "Communication Services Select Sector SPDR Fund",
+      "type": "ETF",
+      "category": "Communication services sector",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "SMH",
+      "name": "VanEck Semiconductor ETF",
+      "type": "ETF",
+      "category": "Semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "SOXX",
+      "name": "iShares Semiconductor ETF",
+      "type": "ETF",
+      "category": "Semiconductors",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "IGV",
+      "name": "iShares Expanded Tech-Software Sector ETF",
+      "type": "ETF",
+      "category": "Software",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "CLOU",
+      "name": "Global X Cloud Computing ETF",
+      "type": "ETF",
+      "category": "Cloud computing",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "BOTZ",
+      "name": "Global X Robotics & Artificial Intelligence ETF",
+      "type": "ETF",
+      "category": "Robotics and AI",
+      "zerodha_eligible": false
+    },
+    {
+      "symbol": "ARKK",
+      "name": "ARK Innovation ETF",
+      "type": "ETF",
+      "category": "Innovation thematic",
+      "zerodha_eligible": false
+    }
+  ]
+}

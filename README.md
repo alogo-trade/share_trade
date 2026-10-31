@@ -48,6 +48,6 @@ The news layer intentionally covers direct company/ticker news plus India macro/
 
 ## US market research
 
-The US pipeline is independent of NSE research and evaluates only symbols explicitly marked `zerodha_eligible: true` in `data/zerodha_us_universe.json`. The starter list is empty by design. Check each symbol in Zerodha Kite Global Stocks before adding it. Yahoo Finance provides research data, not Zerodha quotes. No US trading or holdings sync is implemented.
+The US pipeline is independent of NSE research. It evaluates a curated discovery watchlist in `data/us_candidate_universe.json` plus instruments explicitly marked `zerodha_eligible: true` in `data/zerodha_us_universe.json`. Candidate instruments are not confirmed as available in Zerodha. Verify them in Kite before moving them into the verified file. Verified instruments are prioritised when the analysis limit is applied. Yahoo Finance provides research data, not Zerodha quotes. No US trading or holdings sync is implemented. The candidate file is a curated starter watchlist, not a complete US listing or Zerodha eligibility feed.
 
-Configure with `ENABLE_US_RESEARCH=true` (default), `ZERODHA_US_UNIVERSE_PATH`, and `US_ANALYSIS_UNIVERSE_LIMIT` (default 30).
+Configure with `ENABLE_US_RESEARCH=true` (default), `ZERODHA_US_UNIVERSE_PATH`, `US_CANDIDATE_UNIVERSE_PATH`, and `US_ANALYSIS_UNIVERSE_LIMIT` (default 30).

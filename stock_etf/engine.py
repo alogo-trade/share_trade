@@ -347,7 +347,7 @@ def run(
     # ------------------------------------------------------------------
 
     try:
-        us_research = (run_us_research(settings.us_universe_path, settings.history_period, settings.us_analysis_limit, settings.cache_dir)
+        us_research = (run_us_research(settings.us_universe_path, settings.history_period, settings.us_analysis_limit, settings.cache_dir, settings.us_candidate_universe_path)
                        if settings.us_research_enabled else {"status": "disabled", "instruments": [], "news": []})
     except Exception as exc:
         logger.exception("US research failed independently of NSE analysis")
