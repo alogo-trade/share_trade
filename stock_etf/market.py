@@ -255,10 +255,14 @@ def build_market_data(universe,history_period='3y',workers=3,cache_dir='cache'):
     for i,row in enumerate(universe):
         ysym=yf_symbol(row); info={}
         p=Path(cache_dir)/'fundamentals'/(ysym.replace('/','_')+'.json')
-        if p.exists():
-            try: info=json.loads(p.read_text(encoding='utf-8'))
-            except Exception: info={}
-        elif i<60: info=_info(ysym,str(Path(cache_dir)/'fundamentals'))
+        if i < 60:
+            # _info enforces the fundamentals cache TTL and refreshes expired entries.
+            info = _info(ysym, str(Path(cache_dir) / 'fundamentals'))
+        elif p.exists():
+            try:
+                info = json.loads(p.read_text(encoding='utf-8'))
+            except Exception:
+                info = {}
         rec=_merge_record(row,histories.get(ysym),info)
         records.append(rec)
         if (i+1)%25==0 or i+1==len(universe):logger.info('Market data progress: %d/%d',i+1,len(universe))
