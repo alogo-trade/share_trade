@@ -1,9 +1,11 @@
 # ETF portfolio look-through cache
 
-The portfolio engine refreshes stale ETF look-through data at runtime from configured
+The portfolio engine refreshes ETF look-through data at runtime from configured
 official AMC disclosure pages, then reads the normalized local cache. Network refresh
 can be disabled with `ETF_DISCLOSURE_REFRESH_ENABLED=false`. The default cache freshness
-window is 40 days and can be changed with `ETF_DISCLOSURE_MAX_AGE_DAYS`.
+window is 40 days and can be changed with `ETF_DISCLOSURE_MAX_AGE_DAYS`. Constituent
+files outside that reporting-date window, including future-dated files, are rejected
+for both portfolio summaries and ranking exposure.
 
 The ingestion layer deliberately fails closed. It does not use third-party portfolio
 aggregators, infer constituents from an ETF's benchmark, or replace a valid cache when
@@ -80,10 +82,13 @@ Allowed underlying asset classes are `EQUITY`, `COMMODITY`, `FIXED_INCOME`,
 - `etf_lookthrough`: ETF cache coverage, value coverage, constituent-weight coverage,
   and source/as-of provenance.
 
-A missing cache is not treated as zero exposure. Its value remains in
-`sector_unclassified_current_value` and is reported in
-`etf_value_without_cached_data`. Cache coverage being complete means every held ETF
-has a cache entry; it does not imply every constituent has a known sector.
+A missing or stale constituent cache is not treated as zero exposure. Its value
+remains outside sector attribution and is reported in
+`etf_value_without_cached_data`. `etf_lookthrough_available_count` counts only ETFs
+with valid constituent rows. A classification-only record can still contribute to
+`etf_underlying_asset_class_exposure_pct`, but it does not count as constituent
+look-through coverage and is listed separately in
+`etf_classification_only_count`.
 
 
 ## Runtime ingestion implementation
@@ -101,10 +106,12 @@ dependencies. PDF disclosures are not yet parsed. A workbook is accepted only wh
 a name/ISIN/weight table is found, and its constituent weights validate.
 
 The report includes attempted, updated, unchanged, failed and unsupported counts,
-plus per-symbol source, reporting-date and age details. A source older than the
-configured freshness window is still retained when valid, but marked stale and retried
-at most once per day. Gold and silver ETF schemes can also receive an explicit
+plus per-symbol source, reporting-date and age details. Sources older than the
+configured freshness window, and future-dated sources, are rejected and never replace
+the previous cache. A previous stale constituent cache is also excluded from sector
+attribution and ranking exposure. Gold and silver ETF schemes can receive an explicit
 `SCHEME_IDENTITY_ONLY` cache entry when the official download UI is unavailable.
 This supports commodity asset-class exposure but has no dated constituent disclosure;
 the report marks it as `classification_only` rather than claiming a full portfolio
-look-through.
+look-through. Classification-only records are retried after their one-day fetch
+cooldown and never increase constituent look-through coverage.
