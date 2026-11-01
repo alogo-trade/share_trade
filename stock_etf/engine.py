@@ -156,6 +156,7 @@ def run(
         "failed": 0,
         "unsupported": 0,
         "stale": 0,
+        "classification_only": 0,
         "results": [],
     }
     if settings.etf_disclosure_refresh_enabled:
