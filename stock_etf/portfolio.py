@@ -305,6 +305,10 @@ def _etf_sector_values(
         "etf_constituent_value_attributed": round(constituent_value, 2),
         "etf_sector_attributed_value": round(sector_attributed_value, 2),
         "etf_sector_attributed_holdings_count": sector_attributed_symbols,
+        "cache_sources": [
+            {"symbol": symbol, "source": row.get("source"), "as_of": row.get("as_of")}
+            for symbol, row in sorted(cache_by_symbol.items())
+        ],
         "constituent_weight_coverage_pct": (
             round(constituent_value / etf_total_value * 100, 2)
             if etf_total_value > 0 else 0.0
@@ -455,7 +459,7 @@ def apply_portfolio_context(
     Attach ownership and exposure context independently of market-score availability.
 
     Position percentages use total current value across the complete broker holdings
-    payload as denominator. Sector percentages use classified stock holdings only.
+    payload as denominator. Sector percentages combine direct stocks and cached ETF constituents.
     """
     if not records:
         return
