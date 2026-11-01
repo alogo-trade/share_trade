@@ -148,9 +148,9 @@ def _read_workbook(payload: bytes, url: str) -> list[pd.DataFrame]:
     if suffix == ".csv":
         return [pd.read_csv(BytesIO(payload), header=None, dtype=str)]
     if suffix == ".xls":
-        sheets = pd.read_excel(pd.io.common.BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="xlrd")
+        sheets = pd.read_excel(BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="xlrd")
     elif suffix in {".xlsx", ".xlsm"}:
-        sheets = pd.read_excel(pd.io.common.BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="openpyxl")
+        sheets = pd.read_excel(BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="openpyxl")
     elif suffix == ".zip":
         raise ValueError("zip_disclosure_not_supported_yet")
     else:
