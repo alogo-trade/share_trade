@@ -153,3 +153,97 @@ def test_load_cached_portfolio_metadata_reads_exchange_specific_fundamentals(tmp
     assert by_symbol["INDHOTEL"]["sector"] == "Consumer Cyclical"
     assert by_symbol["HCLTECH"]["type"] == "STOCK"
     assert "GOLDBEES" not in by_symbol
+
+
+
+def test_cached_etf_constituents_are_looked_through_into_sector_and_asset_exposure(tmp_path):
+    import json
+    from stock_etf.portfolio import load_cached_etf_constituents, portfolio_summary
+
+    cache = tmp_path / "etf_holdings"
+    cache.mkdir()
+    (cache / "NIFTYETF.json").write_text(json.dumps({
+        "source": "TEST_EXCHANGE_FILE",
+        "as_of": "2026-10-31",
+        "underlying_asset_class": "EQUITY",
+        "holdings": [
+            {"symbol": "AAA", "weight_pct": 60.0, "sector": "Technology", "asset_class": "EQUITY"},
+            {"symbol": "BBB", "weight_pct": 30.0, "sector": "Financial Services", "asset_class": "EQUITY"},
+        ],
+    }), encoding="utf-8")
+    (cache / "GOLDETF.json").write_text(json.dumps({
+        "source": "TEST_AMC_FACTSHEET",
+        "as_of": "2026-10-31",
+        "underlying_asset_class": "COMMODITY",
+    }), encoding="utf-8")
+
+    holdings = {
+        "NIFTYETF": {"isin": "INF000000001", "current_value": 1000.0},
+        "GOLDETF": {"isin": "INF000000002", "current_value": 500.0},
+        "DIRECT": {"isin": "INE000000001", "current_value": 500.0},
+    }
+    metadata = [{"symbol": "DIRECT", "type": "STOCK", "sector": "Industrials"}]
+    constituents = load_cached_etf_constituents(holdings, tmp_path)
+    summary = portfolio_summary(holdings, universe=metadata, etf_constituents=constituents)
+
+    assert summary["asset_class_exposure_pct"] == {"ETF": 75.0, "STOCK": 25.0}
+    assert summary["sector_exposure_pct"] == {
+        "Technology": 30.0,
+        "Industrials": 25.0,
+        "Financial Services": 15.0,
+    }
+    assert summary["direct_stock_sector_exposure_pct"] == {"Industrials": 25.0}
+    assert summary["etf_lookthrough_sector_exposure_pct"] == {
+        "Technology": 30.0,
+        "Financial Services": 15.0,
+    }
+    assert summary["etf_underlying_asset_class_exposure_pct"] == {
+        "EQUITY": 45.0,
+        "COMMODITY": 25.0,
+    }
+    assert summary["etf_lookthrough"]["etf_lookthrough_available_count"] == 2
+    assert summary["etf_lookthrough"]["etf_value_without_cached_data"] == 0.0
+    assert summary["sector_exposure_coverage_pct"] == 70.0
+
+
+def test_etf_constituent_cache_rejects_invalid_weight_totals(tmp_path):
+    import json
+    from stock_etf.portfolio import load_cached_etf_constituents
+
+    cache = tmp_path / "etf_holdings"
+    cache.mkdir()
+    (cache / "BADETF.json").write_text(json.dumps({
+        "holdings": [
+            {"symbol": "AAA", "weight_pct": 70.0, "sector": "Technology"},
+            {"symbol": "BBB", "weight_pct": 40.0, "sector": "Financials"},
+        ],
+    }), encoding="utf-8")
+
+    rows = load_cached_etf_constituents(
+        {"BADETF": {"isin": "INF000000001", "current_value": 100.0}},
+        tmp_path,
+    )
+    assert rows == []
+
+
+def test_portfolio_sector_exposure_includes_etf_constituents_for_ranking():
+    from stock_etf.portfolio import calculate_sector_exposure
+
+    holdings = {
+        "NIFTYETF": {"isin": "INF000000001", "current_value": 800.0},
+        "DIRECT": {"isin": "INE000000001", "current_value": 200.0},
+    }
+    constituents = [{
+        "symbol": "NIFTYETF",
+        "underlying_asset_class": "EQUITY",
+        "constituents": [
+            {"symbol": "AAA", "weight_pct": 50.0, "sector": "Technology", "asset_class": "EQUITY"},
+            {"symbol": "BBB", "weight_pct": 50.0, "sector": "Financials", "asset_class": "EQUITY"},
+        ],
+    }]
+    records = [{"symbol": "DIRECT", "instrument_type": "STOCK", "sector": "Technology"}]
+
+    assert calculate_sector_exposure(records, holdings, etf_constituents=constituents) == {
+        "Technology": 60.0,
+        "Financials": 40.0,
+    }
