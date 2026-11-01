@@ -87,6 +87,9 @@ def run(
     """
 
     settings = settings or Settings()
+    market_scope = str(getattr(settings, "market_scope", "HYBRID") or "HYBRID").strip().upper()
+    if market_scope not in {"INDIA_ONLY", "US_ONLY", "HYBRID"}:
+        raise ValueError("MARKET_SCOPE must be INDIA_ONLY, US_ONLY, or HYBRID.")
 
     # ------------------------------------------------------------------
     # Investor profile
@@ -124,6 +127,76 @@ def run(
         portfolio_info["holdings_count"],
         portfolio_info["current_value"],
     )
+
+    # US-only mode deliberately exits before NSE universe discovery,
+    # liquidity screening, and NSE market-data collection.
+    if market_scope == "US_ONLY":
+        try:
+            us_research = (
+                run_us_research(
+                    settings.us_universe_path,
+                    settings.history_period,
+                    settings.us_analysis_limit,
+                    settings.cache_dir,
+                    settings.us_candidate_universe_path,
+                )
+                if settings.us_research_enabled
+                else {"status": "disabled", "instruments": [], "news": []}
+            )
+        except Exception as exc:
+            logger.exception("US research failed")
+            us_research = {"status": "error", "message": str(exc), "instruments": [], "news": []}
+
+        empty_decisions = {
+            "provider": "NOT_RUN",
+            "active_provider": "NOT_RUN",
+            "shadow_mode": False,
+            "evaluated_count": 0,
+            "pass_count": 0,
+            "hold_count": 0,
+            "reject_count": 0,
+            "decisions": [],
+            "description": "NSE analysis was skipped because market scope is US_ONLY.",
+        }
+        result = {
+            "metadata": {
+                "engine_version": "stock-etf-v10-decision-gated",
+                "run_at_utc": datetime.now(timezone.utc).isoformat(),
+                "horizon": horizon,
+                "market_scope": market_scope,
+                "discovered_universe_count": 0,
+                "universe_count": 0,
+                "universe_source": "SKIPPED_US_ONLY",
+                "price_source": "Yahoo Finance; not licensed exchange tick data",
+                "analysis_universe_limit": 0,
+                "selection_method": "US research universe only",
+                "profile_backend_path": settings.profile_path,
+                "portfolio_backend_path": settings.holdings_path,
+                "portfolio_source": "zerodha_kite_connect" if holdings else "Not connected",
+            },
+            "investor_profile": profile,
+            "us_research": us_research,
+            "dividend_yield_coverage": {"instrument_count": 0, "yield_status_counts": {}, "history_status_counts": {}},
+            "decision_model": empty_decisions,
+            "portfolio": {
+                "source": "zerodha_kite_connect" if holdings else "not_connected",
+                "holdings": holdings,
+                "summary": portfolio_info,
+                "instrument_context": [],
+            },
+            "market": {"relevant_news": [], "news_found": 0, "news_errors": [], "news_search_links": []},
+            "evaluated_instruments": [],
+            "local_ranking": {
+                "ranked": [], "actionable": [], "held": [], "rejected": [],
+                "unevaluated": [], "shortlist": [], "llm_candidates": [],
+            },
+            "reviews": {"deterministic": [], "llm": [], "llm_status": "not_run", "prompt_tokens": 0},
+        }
+        output_path = Path(settings.output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+        logger.info("US-only analysis written to %s", settings.output_path)
+        return result
 
     # ------------------------------------------------------------------
     # NSE universe
@@ -504,12 +577,24 @@ def run(
     # Result
     # ------------------------------------------------------------------
 
-    try:
-        us_research = (run_us_research(settings.us_universe_path, settings.history_period, settings.us_analysis_limit, settings.cache_dir, settings.us_candidate_universe_path)
-                       if settings.us_research_enabled else {"status": "disabled", "instruments": [], "news": []})
-    except Exception as exc:
-        logger.exception("US research failed independently of NSE analysis")
-        us_research = {"status": "error", "message": str(exc), "instruments": [], "news": []}
+    if market_scope == "INDIA_ONLY":
+        us_research = {"status": "skipped", "reason": "Market scope is INDIA_ONLY.", "instruments": [], "news": []}
+    else:
+        try:
+            us_research = (
+                run_us_research(
+                    settings.us_universe_path,
+                    settings.history_period,
+                    settings.us_analysis_limit,
+                    settings.cache_dir,
+                    settings.us_candidate_universe_path,
+                )
+                if settings.us_research_enabled
+                else {"status": "disabled", "instruments": [], "news": []}
+            )
+        except Exception as exc:
+            logger.exception("US research failed independently of NSE analysis")
+            us_research = {"status": "error", "message": str(exc), "instruments": [], "news": []}
 
     result = {
         "metadata": {
@@ -520,6 +605,7 @@ def run(
             ).isoformat(),
 
             "horizon": horizon,
+            "market_scope": market_scope,
 
             "discovered_universe_count": discovered,
 
