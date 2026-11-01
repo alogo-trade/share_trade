@@ -545,3 +545,90 @@ def test_manual_us_symbol_verification_ignores_index_membership(tmp_path):
     assert "indices" not in persisted
     assert "index_membership" not in persisted
     assert "index_membership_source" not in persisted
+
+
+
+def test_us_listing_directory_parser_excludes_test_and_non_common_securities():
+    from stock_etf.us_discovery import _parse_directory_file
+
+    nasdaq = """Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF
+AAPL|Apple Inc. - Common Stock|Q|N|N|100|N
+BADW|Bad Corp - Warrant|Q|N|N|100|N
+TEST|Test Corp - Common Stock|Q|Y|N|100|N
+SPY|SPDR S&P 500 ETF Trust|Q|N|N|100|Y
+File Creation Time: 010120261200||||||
+"""
+    rows = _parse_directory_file(nasdaq, nasdaq_listed=True)
+    assert set(rows) == {"AAPL", "SPY"}
+    assert rows["SPY"]["type"] == "ETF"
+    assert rows["AAPL"]["primary_exchange"] == "NASDAQ"
+
+
+def test_us_other_exchange_directory_parser_maps_exchange_and_etf():
+    from stock_etf.us_discovery import _parse_directory_file
+
+    other = """ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue
+XYZ|Example Inc. - Common Stock|N|XYZ|N|100|N
+FND|Example Fund - ETF|P|FND|Y|100|N
+"""
+    rows = _parse_directory_file(other, nasdaq_listed=False)
+    assert rows["XYZ"]["primary_exchange"] == "NYSE"
+    assert rows["FND"]["type"] == "ETF"
+    assert rows["FND"]["primary_exchange"] == "NYSE_ARCA"
+
+
+def test_dynamic_us_candidates_require_directory_match_and_preserve_screen_metrics():
+    from stock_etf.us_discovery import _build_dynamic_candidates
+
+    listings = {
+        "AAPL": {"symbol": "AAPL", "name": "Apple", "type": "STOCK", "primary_exchange": "NASDAQ"},
+        "SPY": {"symbol": "SPY", "name": "SPDR", "type": "ETF", "primary_exchange": "NYSE_ARCA"},
+    }
+    rows = _build_dynamic_candidates(
+        listings,
+        [{"symbol": "AAPL", "marketCap": 3000000000000, "averageDailyVolume3Month": 50000000}],
+        [{"symbol": "SPY", "totalAssets": 500000000000, "averageDailyVolume3Month": 80000000}],
+    )
+    assert {row["symbol"] for row in rows} == {"AAPL", "SPY"}
+    assert next(row for row in rows if row["symbol"] == "SPY")["type"] == "ETF"
+    assert next(row for row in rows if row["symbol"] == "AAPL")["discovery_metrics"]["market_cap_usd"] == 3000000000000
+    assert all(row["zerodha_eligible"] is False for row in rows)
+
+
+def test_dynamic_discovery_failure_does_not_drop_manually_verified_symbols(tmp_path, monkeypatch):
+    import stock_etf.us_discovery as discovery
+    import stock_etf.us_engine as us_engine
+
+    verified_path = tmp_path / "verified.json"
+    verified_path.write_text(json.dumps({"instruments": [
+        {"symbol": "AAPL", "name": "Apple", "type": "STOCK", "zerodha_eligible": True}
+    ]}), encoding="utf-8")
+
+    monkeypatch.setattr(discovery, "discover_liquid_us_universe", lambda *args, **kwargs: (_ for _ in ()).throw(
+        RuntimeError("directory unavailable")
+    ))
+    class FakeTicker:
+        @property
+        def news(self):
+            return []
+        def history(self, **kwargs):
+            import pandas as pd
+            return pd.DataFrame()
+        @property
+        def info(self):
+            return {"currency": "USD"}
+        @property
+        def dividends(self):
+            import pandas as pd
+            return pd.Series(dtype=float)
+
+    monkeypatch.setattr(us_engine.yf, "Ticker", lambda _symbol: FakeTicker())
+    result = run_us_research(
+        universe_path=str(verified_path),
+        limit=1,
+        cache_dir=str(tmp_path / "cache"),
+        dynamic_discovery=True,
+    )
+    assert result["instruments"][0]["symbol"] == "AAPL"
+    assert result["discovery"]["dynamic_enabled"] is True
+    assert "directory unavailable" in result["discovery"]["error"]
