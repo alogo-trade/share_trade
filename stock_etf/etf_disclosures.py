@@ -305,7 +305,11 @@ def _cache_is_fresh(path: Path, max_age_days: int) -> bool:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         as_of = date.fromisoformat(str(payload.get("as_of", "")))
-        return (date.today() - as_of).days <= max_age_days
+        age_days = (date.today() - as_of).days
+        if age_days <= max_age_days:
+            return True
+        fetched_at = datetime.fromisoformat(str(payload.get("fetched_at", ""))).date()
+        return (date.today() - fetched_at).days < 1
     except (OSError, ValueError, TypeError):
         return False
 
@@ -329,6 +333,7 @@ def refresh_etf_disclosure_cache(
         "unchanged": 0,
         "failed": 0,
         "unsupported": 0,
+        "stale": 0,
         "results": [],
     }
     held_etfs = [symbol for symbol, item in holdings.items()
@@ -390,15 +395,19 @@ def refresh_etf_disclosure_cache(
                     if not as_of:
                         last_error = "commodity_disclosure_as_of_date_not_found"
                         continue
+                    age_days = (date.today() - date.fromisoformat(as_of)).days
                     payload = {
                         "source": url,
                         "as_of": as_of,
+                        "fetched_at": datetime.now().isoformat(),
                         "underlying_asset_class": "COMMODITY",
                         "holdings": [],
                     }
                     _write_cache(cache_file, payload)
                     diagnostics["updated"] += 1
-                    diagnostics["results"].append({"symbol": symbol, "status": "updated_asset_class_only", "as_of": as_of, "source": url})
+                    if age_days > max_age_days:
+                        diagnostics["stale"] += 1
+                    diagnostics["results"].append({"symbol": symbol, "status": "updated_asset_class_only", "as_of": as_of, "age_days": age_days, "source": url})
                     updated = True
                     break
                 frames = _read_workbook(file_bytes, url)
@@ -417,16 +426,20 @@ def refresh_etf_disclosure_cache(
                 if not as_of:
                     last_error = "disclosure_as_of_date_not_found"
                     continue
+                age_days = (date.today() - date.fromisoformat(as_of)).days
                 payload = {
                     "source": url,
                     "as_of": as_of,
+                    "fetched_at": datetime.now().isoformat(),
                     "underlying_asset_class": "EQUITY",
                     "holdings": rows,
                 }
                 _write_cache(cache_file, payload)
                 diagnostics["updated"] += 1
+                if age_days > max_age_days:
+                    diagnostics["stale"] += 1
                 diagnostics["results"].append({
-                    "symbol": symbol, "status": "updated", "as_of": as_of,
+                    "symbol": symbol, "status": "updated_stale_source" if age_days > max_age_days else "updated", "as_of": as_of, "age_days": age_days,
                     "constituents": len(rows), "weight_total_pct": round(sum(r["weight_pct"] for r in rows), 3),
                     "source": url,
                 })
@@ -444,8 +457,8 @@ def refresh_etf_disclosure_cache(
         else "partial"
     )
     logger.info(
-        "ETF disclosure ingestion: attempted=%d updated=%d unchanged=%d failed=%d unsupported=%d",
+        "ETF disclosure ingestion: attempted=%d updated=%d unchanged=%d stale=%d failed=%d unsupported=%d",
         diagnostics["attempted"], diagnostics["updated"], diagnostics["unchanged"],
-        diagnostics["failed"], diagnostics["unsupported"],
+        diagnostics["stale"], diagnostics["failed"], diagnostics["unsupported"],
     )
     return diagnostics
