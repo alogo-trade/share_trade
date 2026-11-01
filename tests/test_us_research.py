@@ -425,3 +425,94 @@ def test_hybrid_market_news_merge_deduplicates_india_and_us_articles():
         "https://example.com/india",
         "https://example.com/us",
     }
+
+
+
+def test_manual_us_symbol_verification_requires_explicit_user_confirmation(tmp_path):
+    import pytest
+    from stock_etf.us_universe import save_verified_us_instrument
+
+    with pytest.raises(ValueError, match="Explicit confirmation"):
+        save_verified_us_instrument(
+            tmp_path / "zerodha_us_universe.json",
+            {
+                "symbol": "AAPL",
+                "name": "Apple",
+                "type": "STOCK",
+                "primary_exchange": "NASDAQ",
+            },
+            user_confirmed=False,
+        )
+    assert not (tmp_path / "zerodha_us_universe.json").exists()
+
+
+def test_manual_us_symbol_verification_upserts_and_loads_verified_rows(tmp_path):
+    import json
+
+    from stock_etf.us_engine import load_us_universe
+    from stock_etf.us_universe import save_verified_us_instrument
+
+    path = tmp_path / "zerodha_us_universe.json"
+    path.write_text(json.dumps({
+        "source": "previous manual verification",
+        "verified_on": "2026-10-01",
+        "instruments": [
+            {
+                "symbol": "AAPL",
+                "name": "Old Apple name",
+                "type": "STOCK",
+                "zerodha_eligible": True,
+            },
+            {
+                "symbol": "MSFT",
+                "name": "Microsoft",
+                "type": "STOCK",
+                "zerodha_eligible": True,
+            },
+        ],
+    }), encoding="utf-8")
+
+    saved = save_verified_us_instrument(
+        path,
+        {
+            "symbol": "aapl",
+            "name": "Apple Inc.",
+            "type": "STOCK",
+            "primary_exchange": "NASDAQ",
+            "category": "Technology hardware",
+        },
+        user_confirmed=True,
+    )
+
+    rows = load_us_universe(str(path))
+    assert saved["verification_method"] == "USER_CONFIRMED_IN_KITE_GLOBAL_STOCKS"
+    assert [row["symbol"] for row in rows] == ["AAPL", "MSFT"]
+    apple = next(row for row in rows if row["symbol"] == "AAPL")
+    assert apple["name"] == "Apple Inc."
+    assert apple["eligibility_status"] == "ZERODHA_VERIFIED"
+    assert apple["zerodha_eligible"] is True
+    assert apple["category"] == "Technology hardware"
+
+
+def test_manual_us_symbol_verification_rejects_invalid_symbols_and_types(tmp_path):
+    import pytest
+    from stock_etf.us_universe import save_verified_us_instrument
+
+    base = {
+        "name": "Test",
+        "type": "STOCK",
+        "primary_exchange": "NASDAQ",
+    }
+    with pytest.raises(ValueError, match="valid US ticker"):
+        save_verified_us_instrument(
+            tmp_path / "universe.json",
+            {**base, "symbol": "AAPL/EVIL"},
+            user_confirmed=True,
+        )
+    with pytest.raises(ValueError, match="STOCK or ETF"):
+        save_verified_us_instrument(
+            tmp_path / "universe.json",
+            {**base, "symbol": "AAPL", "type": "OPTION"},
+            user_confirmed=True,
+        )
+    assert not (tmp_path / "universe.json").exists()
