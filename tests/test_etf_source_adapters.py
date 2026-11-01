@@ -133,9 +133,9 @@ def test_pdf_disclosure_table_parser_extracts_scheme_holdings(monkeypatch):
 
         def extract_tables(self):
             return [[
-                ["Company/Issuer", "ISIN", "% to NAV", "Industry"],
-                ["Reliance Industries Limited", "INE002A01018", "8.25%", "Energy"],
-                ["HDFC Bank Limited", "INE040A01034", "7.50%", "Banks"],
+                ["Company/Issuer", "% to NAV", "Industry"],
+                ["Reliance Industries Limited", "8.25%", "Energy"],
+                ["HDFC Bank Limited", "7.50%", "Banks"],
             ]]
 
     class PDF:
