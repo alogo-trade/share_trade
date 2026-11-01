@@ -53,6 +53,14 @@ The US pipeline is independent of NSE research. It evaluates a curated discovery
 
 Configure with `ENABLE_US_RESEARCH=true` (default), `ZERODHA_US_UNIVERSE_PATH`, `US_CANDIDATE_UNIVERSE_PATH`, and `US_ANALYSIS_UNIVERSE_LIMIT` (default 30).
 
+US research produces a separate score-ranked research list and shortlist. Unverified candidates remain explicitly marked research-only and are never included in the actionable list. The actionable list requires both explicit Zerodha eligibility verification and a positive research signal. This ranking does not invoke the NSE decision model or place orders.
+
+US market news is collected by macro, policy, technology, energy, geopolitics, consumer, healthcare and broad-market themes. Results are deduplicated, restricted to the configured freshness window, and balanced across categories before being copied to the top-level market report.
+
+US metadata records the provider/source and observation timestamp per instrument. Yahoo Finance does not expose a consistent reporting date for all metadata fields, so the report marks the reporting date unavailable rather than implying that metadata is current. Market-price history dates remain separate from metadata observation timestamps.
+
+ETF disclosure ingestion accepts official AMC spreadsheet and PDF portfolio disclosures. PDF table extraction uses `pdfplumber`. A disclosure is accepted only when the scheme can be matched, the portfolio date is present, constituent weights validate, and the reporting date is within `ETF_DISCLOSURE_MAX_AGE_DAYS`. The default freshness window remains 40 days. Classification-only cache entries do not count as constituent look-through coverage.
+
 
 ## Pre-LLM verification
 
