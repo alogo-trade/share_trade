@@ -45,11 +45,15 @@ def test_motilal_embedded_portfolio_url_inherits_scheme_page_reporting_date():
     assert reporting_date in candidates[0][1]
 
 
-def test_icici_legacy_official_page_is_used_after_current_page_http_error():
-    reporting_date = _recent_date()
+def test_icici_passive_factsheet_page_discovers_pdf_for_scheme():
+    from stock_etf.etf_disclosures import SOURCE_PAGES
+
+    reporting_month = date.today().strftime("%B %Y")
     html = f"""
-    <a href="/downloads/ICICI-Nifty-50-ETF-Portfolio.xlsx">
-      ICICI Prudential Nifty 50 ETF monthly portfolio as on {reporting_date}
+    <h1>ICICI Prudential Nifty 50 ETF</h1>
+    <h2>ICICI Prudential Nifty Next 50 ETF</h2>
+    <a href="/passive/pdf/passive-fund-factsheet-{date.today().strftime('%B').lower()}-{date.today().year}.pdf">
+      Passive Fund Factsheet {reporting_month}
     </a>
     """
 
@@ -61,12 +65,10 @@ def test_icici_legacy_official_page_is_used_after_current_page_http_error():
 
     class Session:
         def get(self, url, timeout):
-            if "media-center/downloads" in url:
-                response = requests.Response()
-                response.status_code = 403
-                raise requests.HTTPError("403", response=response)
+            assert url == "https://digitalfactsheet.icicipruamc.com/passive/"
             return Response()
 
+    assert SOURCE_PAGES["icici"] == "https://digitalfactsheet.icicipruamc.com/passive/"
     candidates, error = _download_candidates(
         Session(),
         "icici",
@@ -77,7 +79,8 @@ def test_icici_legacy_official_page_is_used_after_current_page_http_error():
 
     assert error is None
     assert len(candidates) == 1
-    assert "ICICI-Nifty-50-ETF-Portfolio.xlsx" in candidates[0][0]
+    assert candidates[0][0].endswith(".pdf")
+    assert reporting_month in candidates[0][1]
 
 
 
