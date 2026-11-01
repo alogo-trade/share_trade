@@ -41,7 +41,7 @@ NON_COMMON_STOCK = re.compile(
 
 
 def _parse_directory_file(content: str, *, nasdaq_listed: bool) -> dict[str, dict[str, Any]]:
-    reader = csv.DictReader(io.StringIO(content.lstrip("\\ufeff")), delimiter="|")
+    reader = csv.DictReader(io.StringIO(content.lstrip("\ufeff")), delimiter="|")
     rows: dict[str, dict[str, Any]] = {}
     for raw in reader:
         raw_symbol = raw.get("Symbol") if nasdaq_listed else (
