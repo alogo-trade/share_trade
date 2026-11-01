@@ -22,7 +22,7 @@ def load_holdings(
         return {}
 
     if isinstance(raw, dict):
-        items = raw.get("holdings", [])
+        items = raw.get("holdings", raw)
     elif isinstance(raw, list):
         items = raw
     else:
@@ -30,7 +30,20 @@ def load_holdings(
         return {}
 
     holdings: dict[str, dict] = {}
-    for item in items:
+    if isinstance(items, dict):
+        iterable = []
+        for key, value in items.items():
+            if isinstance(value, dict):
+                item = dict(value)
+                item.setdefault("symbol", key)
+                iterable.append(item)
+    elif isinstance(items, list):
+        iterable = items
+    else:
+        logger.warning("Unexpected holdings collection format in %s", file_path)
+        return {}
+
+    for item in iterable:
         if not isinstance(item, dict):
             continue
         symbol = str(item.get("symbol") or item.get("tradingsymbol") or "").strip().upper()
@@ -48,41 +61,126 @@ def _numeric_value(value, default=0.0) -> float:
         return default
 
 
-def portfolio_summary(holdings: dict[str, dict]) -> dict:
-    """Calculate portfolio-level summary statistics."""
+def _metadata_by_symbol(records: list[dict] | None = None, universe: list[dict] | None = None) -> dict[str, dict]:
+    """Combine detailed screened records with the complete instrument-universe metadata."""
+    metadata = {}
+    for row in universe or []:
+        symbol = str(row.get("symbol") or "").strip().upper()
+        if symbol:
+            metadata[symbol] = dict(row)
+    for row in records or []:
+        symbol = str(row.get("symbol") or "").strip().upper()
+        if symbol:
+            metadata.setdefault(symbol, {}).update(row)
+    return metadata
+
+
+def _asset_class(symbol: str, holding: dict, metadata: dict) -> str:
+    details = metadata.get(symbol, {})
+    explicit = str(
+        holding.get("asset_class") or holding.get("instrument_type")
+        or holding.get("type") or details.get("instrument_type")
+        or details.get("type") or ""
+    ).strip().upper()
+    isin = str(holding.get("isin") or "").upper()
+    if explicit in {"ETF", "STOCK"}:
+        return explicit
+    if explicit in {"SGB", "SOVEREIGN_GOLD_BOND"} or isin.startswith("IN0020"):
+        return "SOVEREIGN_GOLD_BOND"
+    return "UNCLASSIFIED"
+
+
+def portfolio_summary(
+    holdings: dict[str, dict],
+    records: list[dict] | None = None,
+    universe: list[dict] | None = None,
+) -> dict:
+    """Summarise every broker holding, including holdings outside the screened universe."""
     invested_value = sum(_numeric_value(h.get("invested_value")) for h in holdings.values())
     current_value = sum(_numeric_value(h.get("current_value")) for h in holdings.values())
     pnl = current_value - invested_value
     pnl_pct = pnl / invested_value * 100 if invested_value else 0.0
+    metadata = _metadata_by_symbol(records, universe)
+    asset_values = {}
+    screened_symbols = {
+        str(row.get("symbol") or "").strip().upper() for row in records or []
+    }
+    known_universe_symbols = set(metadata)
+    sector_values = {}
+    sector_classified_value = 0.0
+    for symbol, holding in holdings.items():
+        value = _holding_value(holding)
+        asset = _asset_class(symbol, holding, metadata)
+        asset_values[asset] = asset_values.get(asset, 0.0) + value
+        details = metadata.get(symbol, {})
+        if asset == "STOCK":
+            sector = str(holding.get("sector") or details.get("sector") or "").strip()
+            if sector and sector.lower() not in {"unknown", "none", "nan"}:
+                sector_values[sector] = sector_values.get(sector, 0.0) + value
+                sector_classified_value += value
+
+    denominator = current_value or 0.0
+    asset_pct = {
+        key: round(value / denominator * 100, 2) if denominator else 0.0
+        for key, value in sorted(asset_values.items(), key=lambda item: item[1], reverse=True)
+    }
+    sector_pct = {
+        key: round(value / denominator * 100, 2) if denominator else 0.0
+        for key, value in sorted(sector_values.items(), key=lambda item: item[1], reverse=True)
+    }
+    in_universe = sum(symbol in known_universe_symbols for symbol in holdings)
+    in_screen = sum(symbol in screened_symbols for symbol in holdings)
     return {
         "holdings_count": len(holdings),
         "invested_value": round(invested_value, 2),
         "current_value": round(current_value, 2),
         "pnl": round(pnl, 2),
         "pnl_pct": round(pnl_pct, 2),
+        "coverage": {
+            "holdings_in_full_universe_count": in_universe,
+            "holdings_outside_full_universe_count": len(holdings) - in_universe,
+            "holdings_in_screened_universe_count": in_screen,
+            "holdings_outside_screened_universe_count": len(holdings) - in_screen,
+            "asset_classified_holdings_count": sum(
+                _asset_class(symbol, holding, metadata) != "UNCLASSIFIED"
+                for symbol, holding in holdings.items()
+            ),
+            "unclassified_holdings_count": sum(
+                _asset_class(symbol, holding, metadata) == "UNCLASSIFIED"
+                for symbol, holding in holdings.items()
+            ),
+        },
+        "asset_class_exposure_pct": asset_pct,
+        "sector_exposure_pct": sector_pct,
+        "sector_classified_current_value": round(sector_classified_value, 2),
+        "sector_unclassified_current_value": round(max(0.0, current_value - sector_classified_value), 2),
     }
 
 
-def calculate_sector_exposure(records: list[dict], holdings: dict[str, dict]) -> dict[str, float]:
-    """Calculate sector exposure for matched, classified stock holdings only."""
+def calculate_sector_exposure(
+    records: list[dict],
+    holdings: dict[str, dict],
+    universe: list[dict] | None = None,
+) -> dict[str, float]:
+    """Calculate stock-sector exposure against total portfolio value, not only classified stocks."""
+    metadata = _metadata_by_symbol(records, universe)
     sector_values: dict[str, float] = {}
-    for record in records:
-        symbol = str(record.get("symbol") or "").strip().upper()
-        holding = holdings.get(symbol)
-        if not holding or str(record.get("instrument_type") or "STOCK").upper() == "ETF":
+    total_portfolio_value = sum(_holding_value(item) for item in holdings.values())
+    if total_portfolio_value <= 0:
+        return {}
+    for symbol, holding in holdings.items():
+        details = metadata.get(symbol, {})
+        asset = _asset_class(symbol, holding, metadata)
+        if asset != "STOCK":
             continue
-        current_value = _numeric_value(holding.get("current_value"))
-        if current_value <= 0:
-            continue
-        sector = str(record.get("sector") or "").strip()
+        sector = str(holding.get("sector") or details.get("sector") or "").strip()
         if not sector or sector.lower() in {"unknown", "none", "nan"}:
             continue
-        sector_values[sector] = sector_values.get(sector, 0.0) + current_value
-    total_value = sum(sector_values.values())
-    if total_value <= 0:
-        return {}
+        value = _holding_value(holding)
+        if value > 0:
+            sector_values[sector] = sector_values.get(sector, 0.0) + value
     return {
-        sector: round(value / total_value * 100, 2)
+        sector: round(value / total_portfolio_value * 100, 2)
         for sector, value in sorted(sector_values.items(), key=lambda item: item[1], reverse=True)
     }
 
@@ -101,7 +199,11 @@ def _holding_pnl_pct(holding: dict | None) -> float | None:
         return None
 
 
-def apply_portfolio_context(records: list[dict], holdings: dict[str, dict]) -> None:
+def apply_portfolio_context(
+    records: list[dict],
+    holdings: dict[str, dict],
+    universe: list[dict] | None = None,
+) -> None:
     """
     Attach ownership and exposure context independently of market-score availability.
 
@@ -112,7 +214,7 @@ def apply_portfolio_context(records: list[dict], holdings: dict[str, dict]) -> N
         return
 
     total_portfolio_value = sum(_holding_value(holding) for holding in holdings.values())
-    sector_exposure = calculate_sector_exposure(records, holdings)
+    sector_exposure = calculate_sector_exposure(records, holdings, universe)
 
     for record in records:
         symbol = str(record.get("symbol") or "").strip().upper()
