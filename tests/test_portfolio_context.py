@@ -122,6 +122,8 @@ def test_portfolio_summary_classifies_zerodha_isins_without_market_universe():
     }
     assert summary["sector_exposure_pct"] == {"Technology": 60.0}
     assert summary["sector_unclassified_current_value"] == 40.0
+    assert summary["sector_classified_holdings_count"] == 1
+    assert summary["sector_unclassified_holdings_count"] == 2
 
 
 def test_load_cached_portfolio_metadata_reads_exchange_specific_fundamentals(tmp_path):
@@ -134,7 +136,7 @@ def test_load_cached_portfolio_metadata_reads_exchange_specific_fundamentals(tmp
         json.dumps({"sector": "Technology", "industry": "IT Services"}),
         encoding="utf-8",
     )
-    (fundamentals / "INDHOTEL.BO.json").write_text(
+    (fundamentals / "INDHOTEL.NS.json").write_text(
         json.dumps({"sector": "Consumer Cyclical", "industry": "Hotels"}),
         encoding="utf-8",
     )
