@@ -155,6 +155,7 @@ def run(
         "unchanged": 0,
         "failed": 0,
         "unsupported": 0,
+        "stale": 0,
         "results": [],
     }
     if settings.etf_disclosure_refresh_enabled:
