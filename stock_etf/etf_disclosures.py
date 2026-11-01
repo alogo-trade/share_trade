@@ -5,7 +5,7 @@ import logging
 from io import BytesIO
 import re
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -52,8 +52,8 @@ COMMODITY_ETFS = {
     "GOLDBEES", "HDFCGOLD", "SBIGOLD", "SILVERBEES", "HDFCSILVER", "SILVERIETF"
 }
 DATE_PATTERNS = (
-    re.compile(r"(\\d{1,2})[ -](Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[ -](20\\d{2})", re.I),
-    re.compile(r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\s+(20\\d{2})", re.I),
+    re.compile(r"(\d{1,2})[ -](Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[ -](20\d{2})", re.I),
+    re.compile(r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(20\d{2})", re.I),
 )
 
 
@@ -170,47 +170,51 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...]) -> tuple
     alias_tokens = [_normalise(alias) for alias in aliases]
     for frame in frames:
         values = frame.fillna("").astype(str)
-        # Require the target scheme to be named in the same sheet. This prevents
-        # mixing every scheme in a multi-scheme AMC workbook into one ETF.
-        top_text = " ".join(values.iloc[:30, :].values.flatten().tolist())
-        if not any(token and token in _normalise(top_text) for token in alias_tokens):
-            continue
-        for row_idx in range(min(40, len(values))):
-            headers = values.iloc[row_idx].tolist()
-            isin_col = _column_index(headers, ("isin",))
-            weight_col = _column_index(headers, ("percent to net assets", "% to net assets", "net asset percentage", "% nav", "percent to nav", "% to nav"))
-            name_col = _column_index(headers, ("name of instrument", "name of security", "issuer name", "instrument name", "security name"))
-            sector_col = _column_index(headers, ("industry", "sector", "industry classification"))
-            if isin_col is None or weight_col is None or name_col is None:
-                continue
-            rows = []
-            for _, data in values.iloc[row_idx + 1:].iterrows():
-                isin = str(data.iloc[isin_col]).strip().upper()
-                name = str(data.iloc[name_col]).strip()
-                raw_weight = str(data.iloc[weight_col]).replace(",", "").replace("%", "").strip()
-                if not isin or isin.lower() in {"nan", "none"} or not name or name.lower() in {"nan", "none"}:
+        matching_rows = []
+        for idx in range(len(values)):
+            row_text = _normalise(" ".join(values.iloc[idx].tolist()))
+            if any(token and token in row_text for token in alias_tokens):
+                matching_rows.append(idx)
+        for match_idx in matching_rows:
+            for row_idx in range(match_idx, min(match_idx + 40, len(values))):
+                headers = values.iloc[row_idx].tolist()
+                isin_col = _column_index(headers, ("isin",))
+                weight_col = _column_index(headers, ("percent to net assets", "% to net assets", "net asset percentage", "% nav", "percent to nav", "% to nav"))
+                name_col = _column_index(headers, ("name of instrument", "name of security", "issuer name", "instrument name", "security name"))
+                sector_col = _column_index(headers, ("industry", "sector", "industry classification"))
+                if isin_col is None or weight_col is None or name_col is None:
                     continue
-                try:
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    continue
-                if not 0 < weight <= 100:
-                    continue
-                sector = str(data.iloc[sector_col]).strip() if sector_col is not None else ""
-                if sector.lower() in {"nan", "none", "not applicable", "n.a."}:
-                    sector = ""
-                rows.append({
-                    "symbol": name,
-                    "isin": isin,
-                    "weight_pct": round(weight, 6),
-                    "sector": sector or None,
-                    "asset_class": "EQUITY" if sector else "UNCLASSIFIED",
-                })
-            total = sum(row["weight_pct"] for row in rows)
-            if rows and total <= 100.5:
-                return rows, None
-            if rows:
-                return [], f"invalid_total_weight:{total:.3f}"
+                rows = []
+                for _, data in values.iloc[row_idx + 1:].iterrows():
+                    cells = [str(value).strip() for value in data.tolist()]
+                    if not any(cells):
+                        break
+                    isin = str(data.iloc[isin_col]).strip().upper()
+                    name = str(data.iloc[name_col]).strip()
+                    raw_weight = str(data.iloc[weight_col]).replace(",", "").replace("%", "").strip()
+                    if not isin or isin.lower() in {"nan", "none"} or not name or name.lower() in {"nan", "none"}:
+                        continue
+                    try:
+                        weight = float(raw_weight)
+                    except (TypeError, ValueError):
+                        continue
+                    if not 0 < weight <= 100:
+                        continue
+                    sector = str(data.iloc[sector_col]).strip() if sector_col is not None else ""
+                    if sector.lower() in {"nan", "none", "not applicable", "n.a."}:
+                        sector = ""
+                    rows.append({
+                        "symbol": name,
+                        "isin": isin,
+                        "weight_pct": round(weight, 6),
+                        "sector": sector or None,
+                        "asset_class": "EQUITY" if sector else "UNCLASSIFIED",
+                    })
+                total = sum(row["weight_pct"] for row in rows)
+                if rows and total <= 100.5:
+                    return rows, None
+                if rows:
+                    return [], f"invalid_total_weight:{total:.3f}"
     return [], "matching_scheme_table_not_found"
 
 
