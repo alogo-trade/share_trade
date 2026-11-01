@@ -407,7 +407,7 @@ def refresh_etf_disclosure_cache(
                     diagnostics["updated"] += 1
                     if age_days > max_age_days:
                         diagnostics["stale"] += 1
-                    diagnostics["results"].append({"symbol": symbol, "status": "updated_asset_class_only", "as_of": as_of, "age_days": age_days, "source": url})
+                    diagnostics["results"].append({"symbol": symbol, "status": "updated_stale_source" if age_days > max_age_days else "updated_asset_class_only", "as_of": as_of, "age_days": age_days, "source": url})
                     updated = True
                     break
                 frames = _read_workbook(file_bytes, url)
@@ -453,7 +453,7 @@ def refresh_etf_disclosure_cache(
             diagnostics["results"].append({"symbol": symbol, "status": "failed", "reason": last_error})
 
     diagnostics["status"] = (
-        "complete" if diagnostics["failed"] == 0 and diagnostics["unsupported"] == 0
+        "complete" if diagnostics["failed"] == 0 and diagnostics["unsupported"] == 0 and diagnostics["stale"] == 0
         else "partial"
     )
     logger.info(
