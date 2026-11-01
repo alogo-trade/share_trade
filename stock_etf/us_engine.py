@@ -535,7 +535,7 @@ def run_us_research(
             "source_counts": {
                 "YAHOO_FINANCE": sum(
                     1 for row in results
-                    for key in ("sector_metadata_source", "industry_metadata_source", "expense_ratio_metadata_source")
+                    for key in ("sector_metadata_source", "industry_metadata_source", "market_cap_metadata_source", "expense_ratio_metadata_source")
                     if row.get(key) == "YAHOO_FINANCE"
                 ),
                 "YAHOO_FINANCE_FUNDS_DATA": sum(
@@ -544,9 +544,12 @@ def run_us_research(
                     if row.get(key) == "YAHOO_FINANCE_FUNDS_DATA"
                 ),
                 "CURATED_CATEGORY": sum(
-                    1 for row in results
-                    for key in ("sector_metadata_source", "industry_metadata_source")
-                    if row.get(key) == "CURATED_CATEGORY"
+                    row.get("sector_metadata_source") == "CURATED_CATEGORY"
+                    for row in results
+                ),
+                "CURATED_UNIVERSE": sum(
+                    row.get("industry_metadata_source") == "CURATED_UNIVERSE"
+                    for row in results
                 ),
             },
         },
