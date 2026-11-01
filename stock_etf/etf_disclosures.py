@@ -43,7 +43,7 @@ ETF_SOURCES = {
 ALLOWED_SOURCE_HOSTS = {
     "nippon": ("mf.nipponindiaim.com", "portal.amfiindia.com"),
     "hdfc": ("hdfcfund.com",),
-    "mirae": ("miraeassetmf.co.in",),
+    "mirae": ("miraeassetmf.co.in", "miraeassetetf.co.in"),
     "motilal": ("motilaloswalmf.com",),
     "sbi": ("sbimf.com",),
     "icici": ("icicipruamc.com", "digitalfactsheet.icicipruamc.com"),
@@ -52,7 +52,7 @@ ALLOWED_SOURCE_HOSTS = {
 SOURCE_PAGES = {
     "nippon": "https://mf.nipponindiaim.com/investor-service/downloads/factsheet-portfolio-and-other-disclosures",
     "hdfc": "https://www.hdfcfund.com/statutory-disclosure/portfolio/monthly-portfolio",
-    "mirae": "https://www.miraeassetmf.co.in/downloads/portfolio",
+    "mirae": "https://miraeassetetf.co.in/our-etfs/fund?nseSymbol=MAHKTECH&schemeCode=HTRG",
     "motilal": "https://www.motilaloswalmf.com/mutual-funds/motilal-oswal-nasdaq-100-etf",
     "sbi": "https://www.sbimf.com/portfolios",
     "icici": "https://digitalfactsheet.icicipruamc.com/passive/",
@@ -209,10 +209,13 @@ def _download_candidates(
         alias_match = any(alias and (alias in text or alias in label_norm) for alias in aliases_norm)
         generic_monthly = "monthly portfolio" in text or "month end portfolio" in text
         generic_factsheet = source == "icici" and page_confirms_scheme and "factsheet" in text
-        if alias_match or (source in {"nippon", "mirae"} and generic_monthly) or (source == "motilal" and page_confirms_scheme) or generic_factsheet:
+        mirae_full_portfolio = source == "mirae" and page_confirms_scheme and "full portfolio" in text
+        if alias_match or (source in {"nippon", "mirae"} and generic_monthly) or (source == "motilal" and page_confirms_scheme) or generic_factsheet or mirae_full_portfolio:
             candidate_label = label or absolute
             if source == "motilal" and page_confirms_scheme and motilal_page_as_of:
                 candidate_label = f"{candidate_label} as on {date.fromisoformat(motilal_page_as_of).strftime('%d %b %Y')}"
+            if mirae_full_portfolio and not any(alias in _normalise(f"{candidate_label} {absolute}") for alias in aliases_norm):
+                candidate_label = f"{candidate_label} {aliases[0]}"
             candidates.append((absolute, candidate_label))
     # Anchor and embedded-JSON discovery can expose the same file twice.
     unique_candidates = {}
