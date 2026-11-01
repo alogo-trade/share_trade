@@ -177,7 +177,11 @@ def run(
         holdings,
         settings.cache_dir,
     )
-    etf_constituents = load_cached_etf_constituents(holdings, settings.cache_dir)
+    etf_constituents = load_cached_etf_constituents(
+        holdings,
+        settings.cache_dir,
+        max_age_days=settings.etf_disclosure_max_age_days,
+    )
     portfolio_info = portfolio_summary(
         holdings,
         universe=portfolio_metadata,
