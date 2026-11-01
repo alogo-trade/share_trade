@@ -95,11 +95,13 @@ JavaScript may return an explicit unsupported/failure diagnostic until a verifie
 adapter is added. In particular, a source-page mapping does not imply that every
 scheme's workbook format is already supported.
 
-Supported workbook formats are XLS, XLSX and CSV. XLSX and XLS parsing use the
-`openpyxl` and `xlrd` dependencies. ZIP bundles and PDF disclosures are not yet
-parsed. A workbook is accepted only when a scheme-specific section can be identified,
+Supported workbook formats are XLS, XLSX and CSV, including ZIP bundles containing
+those spreadsheet formats. XLSX and XLS parsing use the `openpyxl` and `xlrd`
+dependencies. PDF disclosures are not yet parsed. A workbook is accepted only when a scheme-specific section can be identified,
 a name/ISIN/weight table is found, and its constituent weights validate.
 
 The report includes attempted, updated, unchanged, failed and unsupported counts,
-plus per-symbol source and reporting-date details. Commodity ETFs are stored as
+plus per-symbol source, reporting-date and age details. A source older than the
+configured freshness window is still retained when valid, but marked stale and retried
+at most once per day. Commodity ETFs are stored as
 `COMMODITY` exposure only when a dated official disclosure link is discovered.
