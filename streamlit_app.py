@@ -290,6 +290,7 @@ def run_engine(
     capital,
     enable_llm,
     decision_config,
+    market_scope="HYBRID",
 ):
     """
     Run the research engine explicitly.
@@ -312,6 +313,7 @@ def run_engine(
     )
 
     env["STOCK_HORIZON"] = horizon
+    env["MARKET_SCOPE"] = market_scope
 
     env["INVESTOR_AGE"] = str(
         age
@@ -367,8 +369,8 @@ def run_engine(
     log_tail = []
 
     APP_LOGGER.info(
-        "Starting analysis run_id=%s horizon=%s age=%s capital=%s enable_llm=%s",
-        stamp, horizon, age, capital, enable_llm,
+        "Starting analysis run_id=%s scope=%s horizon=%s age=%s capital=%s enable_llm=%s",
+        stamp, market_scope, horizon, age, capital, enable_llm,
     )
 
     with st.status(
@@ -615,6 +617,9 @@ def main():
             "SHORT_TERM"
         )
 
+    if "market_scope" not in st.session_state:
+        st.session_state.market_scope = "HYBRID"
+
     if "age" not in st.session_state:
         st.session_state.age = (
             backend_profile["age"]
@@ -713,6 +718,20 @@ def main():
 
         st.divider()
 
+        st.header("Market coverage")
+        st.radio(
+            "Analyse",
+            ["INDIA_ONLY", "US_ONLY", "HYBRID"],
+            format_func=lambda x: {
+                "INDIA_ONLY": "India only",
+                "US_ONLY": "US only",
+                "HYBRID": "India + US",
+            }[x],
+            key="market_scope",
+            help="India only skips US research. US only skips NSE discovery and analysis. Hybrid runs both markets.",
+        )
+
+        st.divider()
         st.header(
             "Research horizon"
         )
@@ -823,6 +842,7 @@ def main():
                 st.session_state.capital,
                 st.session_state.llm,
                 st.session_state.decision_config,
+                st.session_state.market_scope,
             )
 
             if result is not None:
