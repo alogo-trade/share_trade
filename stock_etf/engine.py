@@ -157,6 +157,7 @@ def run(
         "unsupported": 0,
         "stale": 0,
         "classification_only": 0,
+        "fresh_cache_skipped": 0,
         "results": [],
     }
     if settings.etf_disclosure_refresh_enabled:
