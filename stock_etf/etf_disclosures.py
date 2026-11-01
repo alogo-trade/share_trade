@@ -46,8 +46,6 @@ SOURCE_PAGES = {
     "motilal": "https://www.motilaloswalmf.com/mutual-funds/motilal-oswal-nasdaq-100-etf",
     "sbi": "https://www.sbimf.com/portfolios",
     "icici": "https://www.icicipruamc.com/media-center/downloads?currentTabFilter=otherSchemeDisclosures&&subCatTabFilter=MonthlyPortfolioDisclosures",
-    # ICICI's current disclosure UI is JS-driven. Do not scrape a third-party
-    # mirror or guess an undocumented API endpoint.
 }
 
 COMMODITY_ETFS = {
@@ -215,7 +213,7 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                     isin = str(data.iloc[isin_col]).strip().upper()
                     name = str(data.iloc[name_col]).strip()
                     raw_weight = str(data.iloc[weight_col]).replace(",", "").replace("%", "").strip()
-                    if not isin or isin.lower() in {"nan", "none"} or not name or name.lower() in {"nan", "none"}:
+                    if not name or name.lower() in {"nan", "none"}:
                         continue
                     try:
                         weight = float(raw_weight)
@@ -240,9 +238,11 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                         asset_class = "EQUITY"
                     else:
                         asset_class = "UNCLASSIFIED"
+                    if not isin and asset_class not in {"CASH", "COMMODITY", "FIXED_INCOME"}:
+                        continue
                     rows.append({
                         "symbol": name,
-                        "isin": isin,
+                        "isin": isin or None,
                         "weight_pct": round(weight, 6),
                         "sector": sector or None,
                         "asset_class": asset_class,
