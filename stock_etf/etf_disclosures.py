@@ -214,7 +214,7 @@ def _download_candidates(
         if alias_match or (source in {"nippon", "mirae"} and generic_monthly) or (source == "motilal" and page_confirms_scheme):
             candidate_label = label or absolute
             if source == "motilal" and page_confirms_scheme and motilal_page_as_of:
-                candidate_label = f"{candidate_label} as on {motilal_page_as_of}"
+                candidate_label = f"{candidate_label} as on {date.fromisoformat(motilal_page_as_of).strftime('%d %b %Y')}"
             candidates.append((absolute, candidate_label))
     # Reject dated archive files outside the configured freshness window.
     # An undated generic archive cannot establish a reporting period.
