@@ -239,9 +239,9 @@ def run(
                 "instrument_context": [],
             },
             "market": {
-                "relevant_news": us_research.get("news", []),
-                "news_found": len(us_research.get("news", [])),
-                "news_errors": us_research.get("news_errors", []),
+                "relevant_news": us_research.get("news") or [],
+                "news_found": len(us_research.get("news") or []),
+                "news_errors": us_research.get("news_errors") or [],
                 "news_search_links": [],
             },
             "evaluated_instruments": [],
