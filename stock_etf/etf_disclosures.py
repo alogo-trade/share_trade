@@ -129,7 +129,7 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
     # Some AMC sites embed the downloadable workbook path in page JSON rather
     # than an anchor element (Motilal's scheme pages use portfolioUrl).
     embedded_paths = re.findall(
-        r"""(?:https?://[^\\s"'<>]+|/[^\\s"'<>]+)\\.(?:xlsx?|csv)(?:\\?[^\\s"'<>]*)?""",
+        r"""(?:https?://[^\s"'<>]+|/[^\s"'<>]+)\.(?:xlsx?|csv)(?:\?[^\s"'<>]*)?""",
         response.text,
         flags=re.I,
     )
@@ -144,7 +144,7 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
         label_norm = _normalise(label)
         href_norm = _normalise(absolute)
         text = f"{label_norm} {href_norm}"
-        is_file = bool(re.search(r"\\.(xlsx?|csv|zip)(?:$|\\?)", parsed.path, re.I))
+        is_file = bool(re.search(r"\.(xlsx?|csv|zip)(?:$|\?)", parsed.path, re.I))
         if not is_file:
             continue
         alias_match = any(alias and (alias in text or alias in label_norm) for alias in aliases_norm)
