@@ -76,18 +76,72 @@ def _metadata_by_symbol(records: list[dict] | None = None, universe: list[dict] 
 
 
 def _asset_class(symbol: str, holding: dict, metadata: dict) -> str:
+    """Classify broker equity holdings even when they are absent from a market universe."""
     details = metadata.get(symbol, {})
     explicit = str(
         holding.get("asset_class") or holding.get("instrument_type")
         or holding.get("type") or details.get("instrument_type")
         or details.get("type") or ""
     ).strip().upper()
-    isin = str(holding.get("isin") or "").upper()
+    isin = str(holding.get("isin") or "").strip().upper()
     if explicit in {"ETF", "STOCK"}:
         return explicit
     if explicit in {"SGB", "SOVEREIGN_GOLD_BOND"} or isin.startswith("IN0020"):
         return "SOVEREIGN_GOLD_BOND"
+    # Zerodha equity holdings use INF-prefixed ISINs for listed fund units/ETFs
+    # and INE-prefixed ISINs for company equity. Do not depend on NSE screening.
+    if isin.startswith("INF"):
+        return "ETF"
+    if isin.startswith("INE"):
+        return "STOCK"
     return "UNCLASSIFIED"
+
+
+def load_cached_portfolio_metadata(
+    holdings: dict[str, dict],
+    cache_dir: str | Path,
+) -> list[dict]:
+    """Load sector/industry metadata for held stocks from the existing Yahoo cache.
+
+    This is deliberately cache-only: US_ONLY portfolio reporting must not trigger
+    NSE discovery or additional Yahoo network requests just to classify holdings.
+    """
+    fundamentals_dir = Path(cache_dir) / "fundamentals"
+    rows = []
+    for symbol, holding in holdings.items():
+        exchange = str(holding.get("exchange") or "NSE").strip().upper()
+        suffix = ".BO" if exchange == "BSE" else ".NS"
+        yahoo_symbol = symbol if "." in symbol else f"{symbol}{suffix}"
+        cache_path = fundamentals_dir / f"{yahoo_symbol.replace('/', '_')}.json"
+        if not cache_path.exists():
+            continue
+        try:
+            payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError) as exc:
+            logger.warning("Could not read cached portfolio metadata for %s: %s", symbol, exc)
+            continue
+        if not isinstance(payload, dict):
+            continue
+        sector = str(payload.get("sector") or "").strip()
+        industry = str(payload.get("industry") or "").strip()
+        if not sector and not industry:
+            continue
+        row = {
+            "symbol": symbol,
+            "type": _asset_class(symbol, holding, {}),
+            "sector_metadata_source": "YAHOO_FUNDAMENTALS_CACHE",
+            "industry_metadata_source": "YAHOO_FUNDAMENTALS_CACHE",
+        }
+        if sector and sector.lower() not in {"unknown", "none", "nan"}:
+            row["sector"] = sector
+        if industry and industry.lower() not in {"unknown", "none", "nan"}:
+            row["industry"] = industry
+        rows.append(row)
+    logger.info(
+        "Loaded cached portfolio metadata: %d/%d holdings have sector/industry data.",
+        len(rows), len(holdings),
+    )
+    return rows
 
 
 def portfolio_summary(
