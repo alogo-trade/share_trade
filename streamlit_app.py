@@ -28,6 +28,7 @@ from stock_etf.zerodha import (
 )
 from stock_etf.us_universe import (
     load_candidate_metadata,
+    load_verified_us_instruments,
     save_verified_us_instrument,
 )
 
@@ -746,10 +747,27 @@ def main():
         )
 
         with st.expander("Manually verify a US symbol in Zerodha", expanded=False):
+            verified_us_rows = load_verified_us_instruments(US_UNIVERSE_PATH)
             st.caption(
+                f"{len(verified_us_rows)} US symbols currently marked verified. "
                 "Search the exact ticker in Kite > International / Global Stocks first. "
                 "This records your confirmation; it does not claim an API lookup or place an order."
             )
+            if verified_us_rows:
+                st.dataframe(
+                    pd.DataFrame([
+                        {
+                            "Ticker": row.get("symbol"),
+                            "Name": row.get("name"),
+                            "Type": row.get("type"),
+                            "Exchange": row.get("primary_exchange"),
+                            "Verified on": row.get("verified_on"),
+                        }
+                        for row in verified_us_rows
+                    ]),
+                    use_container_width=True,
+                    hide_index=True,
+                )
             with st.form("manual_us_symbol_verification"):
                 manual_symbol = st.text_input(
                     "US ticker",
