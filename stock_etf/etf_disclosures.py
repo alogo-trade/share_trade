@@ -198,6 +198,7 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                 weight_col = _column_index(headers, ("percent to net assets", "% to net assets", "net asset percentage", "% nav", "percent to nav", "% to nav"))
                 name_col = _column_index(headers, ("name of instrument", "name of security", "issuer name", "instrument name", "security name"))
                 sector_col = _column_index(headers, ("industry", "sector", "industry classification"))
+                asset_class_col = _column_index(headers, ("asset class", "instrument type", "security type"))
                 if isin_col is None or weight_col is None or name_col is None:
                     continue
                 rows = []
