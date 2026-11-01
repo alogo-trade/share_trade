@@ -6,6 +6,7 @@ from io import BytesIO
 import re
 import tempfile
 from datetime import date, datetime
+import calendar
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -44,6 +45,7 @@ SOURCE_PAGES = {
     "mirae": "https://www.miraeassetmf.co.in/downloads/portfolio",
     "motilal": "https://www.motilaloswalmf.com/download/month-end-portfolio",
     "sbi": "https://www.sbimf.com/portfolios",
+    "icici": "https://www.icicipruamc.com/media-center/downloads?currentTabFilter=otherSchemeDisclosures&&subCatTabFilter=MonthlyPortfolioDisclosures",
     # ICICI's current disclosure UI is JS-driven. Do not scrape a third-party
     # mirror or guess an undocumented API endpoint.
 }
@@ -85,7 +87,7 @@ def _normalise(value) -> str:
 
 
 def _parse_as_of(value: str) -> str | None:
-    text = str(value or "")
+    text = re.sub(r"(\\d)(st|nd|rd|th)\\b", r"\\1", str(value or ""), flags=re.I)
     for pattern in DATE_PATTERNS:
         match = pattern.search(text)
         if not match:
@@ -102,7 +104,8 @@ def _parse_as_of(value: str) -> str | None:
                     day, month, year = match.groups()
                     return datetime.strptime(f"{day} {month[:3]} {year}", "%d %b %Y").date().isoformat()
                 month, year = match.groups()
-                return datetime.strptime(f"1 {month[:3]} {year}", "%d %b %Y").date().isoformat()
+                month_date = datetime.strptime(f"1 {month[:3]} {year}", "%d %b %Y").date()
+                return date(month_date.year, month_date.month, calendar.monthrange(month_date.year, month_date.month)[1]).isoformat()
             except ValueError:
                 continue
     return None
@@ -166,7 +169,7 @@ def _column_index(headers: list[str], patterns: tuple[str, ...]) -> int | None:
     return None
 
 
-def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...]) -> tuple[list[dict], str | None]:
+def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_context_verified: bool = False) -> tuple[list[dict], str | None]:
     alias_tokens = [_normalise(alias) for alias in aliases]
     for frame in frames:
         values = frame.fillna("").astype(str)
@@ -175,6 +178,8 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...]) -> tuple
             row_text = _normalise(" ".join(values.iloc[idx].tolist()))
             if any(token and token in row_text for token in alias_tokens):
                 matching_rows.append(idx)
+        if not matching_rows and scheme_context_verified:
+            matching_rows = [0]
         for match_idx in matching_rows:
             for row_idx in range(match_idx, min(match_idx + 40, len(values))):
                 headers = values.iloc[row_idx].tolist()
@@ -316,7 +321,8 @@ def refresh_etf_disclosure_cache(
                     updated = True
                     break
                 frames = _read_workbook(response.content, url)
-                rows, parse_error = _extract_rows(frames, aliases)
+                link_confirms_scheme = any(_normalise(alias) in _normalise(f"{label} {url}") for alias in aliases)
+                rows, parse_error = _extract_rows(frames, aliases, scheme_context_verified=link_confirms_scheme)
                 if parse_error:
                     last_error = parse_error
                     continue
