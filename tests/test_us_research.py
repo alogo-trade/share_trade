@@ -402,3 +402,26 @@ def test_us_metadata_provenance_does_not_claim_provider_reporting_date():
         assert result["metadata_coverage"]["provenance_observed_count"] == 1
     finally:
         monkeypatch.undo()
+
+
+
+def test_hybrid_market_news_merge_deduplicates_india_and_us_articles():
+    from stock_etf.engine import _merge_news_items
+
+    merged = _merge_news_items(
+        [
+            {"title": "Global rates update", "link": "https://example.com/story?utm_source=india"},
+            {"title": "India market update", "link": "https://example.com/india"},
+        ],
+        [
+            {"title": "Duplicate global rates update", "link": "https://example.com/story?utm_source=us"},
+            {"title": "US market update", "link": "https://example.com/us"},
+        ],
+    )
+
+    assert len(merged) == 3
+    assert {row["link"].split("?")[0] for row in merged} == {
+        "https://example.com/story",
+        "https://example.com/india",
+        "https://example.com/us",
+    }
