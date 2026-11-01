@@ -1,7 +1,14 @@
 # ETF portfolio look-through cache
 
-The portfolio engine reads ETF look-through data from local cache only. It does not
-make network requests during analysis, including in `US_ONLY` mode.
+The portfolio engine refreshes stale ETF look-through data at runtime from configured
+official AMC disclosure pages, then reads the normalized local cache. Network refresh
+can be disabled with `ETF_DISCLOSURE_REFRESH_ENABLED=false`. The default cache freshness
+window is 40 days and can be changed with `ETF_DISCLOSURE_MAX_AGE_DAYS`.
+
+The ingestion layer deliberately fails closed. It does not use third-party portfolio
+aggregators, infer constituents from an ETF's benchmark, or replace a valid cache when
+a download or parse fails. Unsupported dynamic pages and unknown workbook layouts are
+reported in `portfolio.summary.etf_ingestion`.
 
 ## File location
 
@@ -77,3 +84,22 @@ A missing cache is not treated as zero exposure. Its value remains in
 `sector_unclassified_current_value` and is reported in
 `etf_value_without_cached_data`. Cache coverage being complete means every held ETF
 has a cache entry; it does not imply every constituent has a known sector.
+
+
+## Runtime ingestion implementation
+
+The runtime reader is `stock_etf/etf_disclosures.py`. It currently has official
+source-page mappings for Nippon India, HDFC, ICICI Prudential, Mirae Asset, SBI and
+Motilal Oswal. AMC pages that render their download links only through client-side
+JavaScript may return an explicit unsupported/failure diagnostic until a verified
+adapter is added. In particular, a source-page mapping does not imply that every
+scheme's workbook format is already supported.
+
+Supported workbook formats are XLS, XLSX and CSV. XLSX and XLS parsing use the
+`openpyxl` and `xlrd` dependencies. ZIP bundles and PDF disclosures are not yet
+parsed. A workbook is accepted only when a scheme-specific section can be identified,
+a name/ISIN/weight table is found, and its constituent weights validate.
+
+The report includes attempted, updated, unchanged, failed and unsupported counts,
+plus per-symbol source and reporting-date details. Commodity ETFs are stored as
+`COMMODITY` exposure only when a dated official disclosure link is discovered.
