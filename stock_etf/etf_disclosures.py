@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from io import BytesIO
 import re
 import tempfile
 from datetime import date, datetime, timedelta
@@ -145,7 +146,7 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
 def _read_workbook(payload: bytes, url: str) -> list[pd.DataFrame]:
     suffix = Path(urlparse(url).path).suffix.lower()
     if suffix == ".csv":
-        return [pd.read_csv(pd.io.common.BytesIO(payload), header=None, dtype=str)]
+        return [pd.read_csv(BytesIO(payload), header=None, dtype=str)]
     if suffix == ".xls":
         sheets = pd.read_excel(pd.io.common.BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="xlrd")
     elif suffix in {".xlsx", ".xlsm"}:
@@ -160,7 +161,7 @@ def _read_workbook(payload: bytes, url: str) -> list[pd.DataFrame]:
 def _column_index(headers: list[str], patterns: tuple[str, ...]) -> int | None:
     normalised = [_normalise(value) for value in headers]
     for idx, header in enumerate(normalised):
-        if any(pattern in header for pattern in patterns):
+        if any(_normalise(pattern) in header for pattern in patterns):
             return idx
     return None
 
@@ -275,21 +276,6 @@ def refresh_etf_disclosure_cache(
 
         # Precious-metal ETFs have no equity-sector look-through. Persist their
         # verified asset class, but do not invent security constituents.
-        if symbol in COMMODITY_ETFS:
-            diagnostics["attempted"] += 1
-            payload = {
-                "source": SOURCE_PAGES.get(source, "AMC monthly portfolio disclosure"),
-                "as_of": None,
-                "underlying_asset_class": "COMMODITY",
-                "holdings": [],
-                "source_status": "asset_class_only",
-            }
-            # No dated disclosure has been fetched, so do not create a cache
-            # record that the existing reader could mistake for current data.
-            diagnostics["unsupported"] += 1
-            diagnostics["results"].append({"symbol": symbol, "status": "commodity_class_known_disclosure_not_fetched"})
-            continue
-
         diagnostics["attempted"] += 1
         candidates, error = _download_candidates(session, source, aliases)
         if error:
@@ -309,12 +295,27 @@ def refresh_etf_disclosure_cache(
                 response.raise_for_status()
                 if len(response.content) > MAX_DOWNLOAD_BYTES:
                     raise ValueError("disclosure_exceeds_download_limit")
+                as_of = _parse_as_of(f"{label} {url}")
+                if symbol in COMMODITY_ETFS:
+                    if not as_of:
+                        last_error = "commodity_disclosure_as_of_date_not_found"
+                        continue
+                    payload = {
+                        "source": url,
+                        "as_of": as_of,
+                        "underlying_asset_class": "COMMODITY",
+                        "holdings": [],
+                    }
+                    _write_cache(cache_file, payload)
+                    diagnostics["updated"] += 1
+                    diagnostics["results"].append({"symbol": symbol, "status": "updated_asset_class_only", "as_of": as_of, "source": url})
+                    updated = True
+                    break
                 frames = _read_workbook(response.content, url)
                 rows, parse_error = _extract_rows(frames, aliases)
                 if parse_error:
                     last_error = parse_error
                     continue
-                as_of = _parse_as_of(f"{label} {url}")
                 if not as_of:
                     # Use a date printed in the workbook, not the download date.
                     for frame in frames:
