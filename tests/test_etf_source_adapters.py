@@ -85,13 +85,13 @@ def test_icici_passive_factsheet_page_discovers_pdf_for_scheme():
 
 
 
-def test_mirae_monthly_portfolio_adapter_uses_official_portfolio_page():
+def test_mirae_scheme_page_discovers_full_portfolio_download():
     from stock_etf.etf_disclosures import SOURCE_PAGES
 
-    reporting_date = _recent_date()
-    html = f"""
-    <a href="/downloads/MAHKTECH-portfolio.xlsx">
-      Monthly portfolio for Mirae Asset Hang Seng TECH ETF as on {reporting_date}
+    html = """
+    <h1>MIRAE ASSET HANG SENG TECH ETF</h1>
+    <a href="/wp-content/uploads/2026/10/MAHKTECH-Full-Portfolio.pdf">
+      Full Portfolio
     </a>
     """
 
@@ -103,10 +103,16 @@ def test_mirae_monthly_portfolio_adapter_uses_official_portfolio_page():
 
     class Session:
         def get(self, url, timeout):
-            assert url == "https://www.miraeassetmf.co.in/downloads/portfolio"
+            assert url == (
+                "https://miraeassetetf.co.in/our-etfs/fund?"
+                "nseSymbol=MAHKTECH&schemeCode=HTRG"
+            )
             return Response()
 
-    assert SOURCE_PAGES["mirae"] == "https://www.miraeassetmf.co.in/downloads/portfolio"
+    assert SOURCE_PAGES["mirae"] == (
+        "https://miraeassetetf.co.in/our-etfs/fund?"
+        "nseSymbol=MAHKTECH&schemeCode=HTRG"
+    )
     candidates, error = _download_candidates(
         Session(),
         "mirae",
@@ -117,7 +123,8 @@ def test_mirae_monthly_portfolio_adapter_uses_official_portfolio_page():
 
     assert error is None
     assert len(candidates) == 1
-    assert "MAHKTECH-portfolio.xlsx" in candidates[0][0]
+    assert candidates[0][0].endswith("MAHKTECH-Full-Portfolio.pdf")
+    assert "Mirae Asset Hang Seng TECH ETF" in candidates[0][1]
 
 
 
