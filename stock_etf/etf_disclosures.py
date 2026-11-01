@@ -219,12 +219,26 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                     sector = str(data.iloc[sector_col]).strip() if sector_col is not None else ""
                     if sector.lower() in {"nan", "none", "not applicable", "n.a."}:
                         sector = ""
+                    explicit_class = str(data.iloc[asset_class_col]).strip().upper() if asset_class_col is not None else ""
+                    security_text = f"{name} {explicit_class}".upper()
+                    if any(token in security_text for token in ("TREPS", "REPO", "CASH", "BANK DEPOSIT", "CURRENT ASSET")):
+                        asset_class = "CASH"
+                    elif any(token in security_text for token in ("GOLD", "SILVER", "BULLION", "COMMODITY")):
+                        asset_class = "COMMODITY"
+                    elif any(token in security_text for token in ("DEBENTURE", "BOND", "GOVERNMENT SECURITY", "TREASURY BILL", "CERTIFICATE OF DEPOSIT", "COMMERCIAL PAPER")):
+                        asset_class = "FIXED_INCOME"
+                    elif explicit_class:
+                        asset_class = explicit_class if explicit_class in {"EQUITY", "COMMODITY", "FIXED_INCOME", "CASH", "OTHER"} else "UNCLASSIFIED"
+                    elif isin.startswith(("INE", "US", "CA", "GB", "JP", "HK")) or sector:
+                        asset_class = "EQUITY"
+                    else:
+                        asset_class = "UNCLASSIFIED"
                     rows.append({
                         "symbol": name,
                         "isin": isin,
                         "weight_pct": round(weight, 6),
                         "sector": sector or None,
-                        "asset_class": "EQUITY" if sector else "UNCLASSIFIED",
+                        "asset_class": asset_class,
                     })
                 total = sum(row["weight_pct"] for row in rows)
                 if rows and total <= 100.5:
