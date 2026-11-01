@@ -103,5 +103,8 @@ a name/ISIN/weight table is found, and its constituent weights validate.
 The report includes attempted, updated, unchanged, failed and unsupported counts,
 plus per-symbol source, reporting-date and age details. A source older than the
 configured freshness window is still retained when valid, but marked stale and retried
-at most once per day. Commodity ETFs are stored as
-`COMMODITY` exposure only when a dated official disclosure link is discovered.
+at most once per day. Gold and silver ETF schemes can also receive an explicit
+`SCHEME_IDENTITY_ONLY` cache entry when the official download UI is unavailable.
+This supports commodity asset-class exposure but has no dated constituent disclosure;
+the report marks it as `classification_only` rather than claiming a full portfolio
+look-through.
