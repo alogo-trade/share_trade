@@ -43,7 +43,7 @@ SOURCE_PAGES = {
     "nippon": "https://mf.nipponindiaim.com/investor-service/downloads/factsheet-portfolio-and-other-disclosures",
     "hdfc": "https://www.hdfcfund.com/statutory-disclosure/portfolio/monthly-portfolio",
     "mirae": "https://www.miraeassetmf.co.in/downloads/portfolio",
-    "motilal": "https://www.motilaloswalmf.com/download/month-end-portfolio",
+    "motilal": "https://www.motilaloswalmf.com/mutual-funds/motilal-oswal-nasdaq-100-etf",
     "sbi": "https://www.sbimf.com/portfolios",
     "icici": "https://www.icicipruamc.com/media-center/downloads?currentTabFilter=otherSchemeDisclosures&&subCatTabFilter=MonthlyPortfolioDisclosures",
     # ICICI's current disclosure UI is JS-driven. Do not scrape a third-party
@@ -125,7 +125,18 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
     parser.feed(response.text)
     aliases_norm = [_normalise(alias) for alias in aliases]
     candidates = []
-    for label, href in parser.links:
+    link_items = list(parser.links)
+    # Some AMC sites embed the downloadable workbook path in page JSON rather
+    # than an anchor element (Motilal's scheme pages use portfolioUrl).
+    embedded_paths = re.findall(
+        r"""(?:https?://[^\\s"'<>]+|/[^\\s"'<>]+)\\.(?:xlsx?|csv)(?:\\?[^\\s"'<>]*)?""",
+        response.text,
+        flags=re.I,
+    )
+    link_items.extend((path, path) for path in embedded_paths)
+    page_text = _normalise(response.text)
+    page_confirms_scheme = any(alias and alias in page_text for alias in aliases_norm)
+    for label, href in link_items:
         absolute = urljoin(page_url, href)
         parsed = urlparse(absolute)
         if parsed.scheme not in {"http", "https"}:
@@ -136,9 +147,9 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
         is_file = bool(re.search(r"\\.(xlsx?|csv|zip)(?:$|\\?)", parsed.path, re.I))
         if not is_file:
             continue
-        alias_match = any(alias and (alias in text or _normalise(alias) in label_norm) for alias in aliases_norm)
+        alias_match = any(alias and (alias in text or alias in label_norm) for alias in aliases_norm)
         generic_monthly = "monthly portfolio" in text or "month end portfolio" in text
-        if alias_match or (source == "nippon" and generic_monthly):
+        if alias_match or (source == "nippon" and generic_monthly) or (source == "motilal" and page_confirms_scheme):
             candidates.append((absolute, label or absolute))
     # Prefer links whose label directly identifies the scheme. Avoid selecting
     # several stale months or unrelated AMC documents.
