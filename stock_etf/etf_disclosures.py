@@ -172,7 +172,7 @@ def _download_candidates(
     # Motilal publishes the workbook path and its reporting date in page JSON.
     # Bind that date to the embedded workbook only on the exact scheme page.
     motilal_date_match = re.search(
-        r"Date\\s*As\\s*On\\s*[:\\-]?\\s*([^<\\r\\n]+)",
+        r"Date\s*As\s*On\s*[:\-]?\s*([^<\r\n]+)",
         page_text,
         flags=re.I,
     )
@@ -188,7 +188,7 @@ def _download_candidates(
     # Some AMC sites embed the downloadable workbook path in page JSON rather
     # than an anchor element (Motilal's scheme pages use portfolioUrl).
     embedded_paths = re.findall(
-        r"""(?:https?://[^\\s"'<>]+|/[^\\s"'<>]+)\\.(?:xlsx?|csv)(?:\\?[^\\s"'<>]*)?""",
+        r"""(?:https?://[^\s"'<>]+|/[^\s"'<>]+)\.(?:xlsx?|csv)(?:\?[^\s"'<>]*)?""",
         page_text,
         flags=re.I,
     )
