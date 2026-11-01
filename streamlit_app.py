@@ -750,7 +750,8 @@ def main():
             verified_us_rows = load_verified_us_instruments(US_UNIVERSE_PATH)
             st.caption(
                 f"{len(verified_us_rows)} US symbols currently marked verified. "
-                "Search the exact ticker in Kite > International / Global Stocks first. "
+                "Search the exact ticker in Kite > International / Global Stocks first. " 
+                "Index membership is not required or checked for manual verification. "
                 "This records your confirmation; it does not claim an API lookup or place an order."
             )
             if verified_us_rows:
