@@ -101,3 +101,35 @@ def test_future_dated_disclosure_is_not_fresh(tmp_path):
 
 def test_month_only_disclosure_date_resolves_to_month_end():
     assert _parse_as_of("Monthly portfolio September 2026") == "2026-09-30"
+
+
+def test_candidate_discovery_rejects_old_monthly_archive(tmp_path):
+    from datetime import date, timedelta
+    from stock_etf.etf_disclosures import _download_candidates
+
+    old_date = date.today() - timedelta(days=700)
+    html = (
+        '<a href="/files/monthly-portfolio.xls">'
+        f'Monthly portfolio as on {old_date.strftime("%d %B %Y")}'
+        '</a>'
+    )
+
+    class Response:
+        text = html
+
+        def raise_for_status(self):
+            return None
+
+    class Session:
+        def get(self, url, timeout):
+            return Response()
+
+    candidates, error = _download_candidates(
+        Session(),
+        "nippon",
+        ("Nippon India ETF Gold BeES",),
+        page_cache={},
+        max_age_days=40,
+    )
+    assert candidates == []
+    assert error == "only_stale_official_disclosures_available"
