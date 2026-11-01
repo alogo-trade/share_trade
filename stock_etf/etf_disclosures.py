@@ -182,7 +182,7 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
             candidates.append((absolute, label or absolute))
     # Prefer links whose label directly identifies the scheme. Avoid selecting
     # several stale months or unrelated AMC documents.
-    candidates.sort(key=lambda item: (not any(_normalise(a) in _normalise(item[1]) for a in aliases), item[1]), reverse=False)
+    candidates.sort(key=lambda item: _parse_as_of(f"{item[1]} {item[0]}") or "", reverse=True)
     return candidates[:3], None
 
 
