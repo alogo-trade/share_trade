@@ -201,8 +201,13 @@ def test_cached_etf_constituents_are_looked_through_into_sector_and_asset_exposu
         "EQUITY": 45.0,
         "COMMODITY": 25.0,
     }
-    assert summary["etf_lookthrough"]["etf_lookthrough_available_count"] == 2
-    assert summary["etf_lookthrough"]["etf_value_without_cached_data"] == 0.0
+    # Only the equity ETF has constituent rows. The gold ETF cache is
+    # classification-only and must not inflate constituent look-through coverage.
+    assert summary["etf_lookthrough"]["etf_lookthrough_available_count"] == 1
+    assert summary["etf_lookthrough"]["etf_lookthrough_missing_count"] == 1
+    assert summary["etf_lookthrough"]["etf_classification_only_count"] == 1
+    assert summary["etf_lookthrough"]["etf_value_with_cached_data"] == 1000.0
+    assert summary["etf_lookthrough"]["etf_value_without_cached_data"] == 500.0
     assert summary["sector_exposure_coverage_pct"] == 70.0
 
 
@@ -247,3 +252,30 @@ def test_portfolio_sector_exposure_includes_etf_constituents_for_ranking():
         "Technology": 60.0,
         "Financials": 40.0,
     }
+
+
+
+def test_stale_etf_constituent_cache_is_excluded_from_portfolio_and_ranking(tmp_path):
+    import json
+    from datetime import date, timedelta
+    from stock_etf.portfolio import load_cached_etf_constituents, calculate_sector_exposure, portfolio_summary
+
+    cache = tmp_path / "etf_holdings"
+    cache.mkdir()
+    stale_date = (date.today() - timedelta(days=90)).isoformat()
+    (cache / "STALEETF.json").write_text(json.dumps({
+        "source": "OLD_AMC_FILE",
+        "as_of": stale_date,
+        "underlying_asset_class": "EQUITY",
+        "holdings": [
+            {"symbol": "OLDTECH", "weight_pct": 100.0, "sector": "Technology", "asset_class": "EQUITY"}
+        ],
+    }), encoding="utf-8")
+    holdings = {"STALEETF": {"isin": "INF000000099", "current_value": 1000.0}}
+    constituents = load_cached_etf_constituents(holdings, tmp_path, max_age_days=40)
+
+    assert constituents == []
+    summary = portfolio_summary(holdings, etf_constituents=constituents)
+    assert summary["etf_lookthrough"]["etf_lookthrough_available_count"] == 0
+    assert summary["etf_lookthrough"]["etf_value_without_cached_data"] == 1000.0
+    assert calculate_sector_exposure([], holdings, etf_constituents=constituents) == {}
