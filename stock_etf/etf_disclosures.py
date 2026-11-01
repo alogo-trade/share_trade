@@ -203,14 +203,14 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                 name_col = _column_index(headers, ("name of instrument", "name of security", "issuer name", "instrument name", "security name"))
                 sector_col = _column_index(headers, ("industry", "sector", "industry classification"))
                 asset_class_col = _column_index(headers, ("asset class", "instrument type", "security type"))
-                if isin_col is None or weight_col is None or name_col is None:
+                if (isin_col is None and not scheme_context_verified) or weight_col is None or name_col is None:
                     continue
                 rows = []
                 for _, data in values.iloc[row_idx + 1:].iterrows():
                     cells = [str(value).strip() for value in data.tolist()]
                     if not any(cells):
                         break
-                    isin = str(data.iloc[isin_col]).strip().upper()
+                    isin = str(data.iloc[isin_col]).strip().upper() if isin_col is not None else ""
                     name = str(data.iloc[name_col]).strip()
                     raw_weight = str(data.iloc[weight_col]).replace(",", "").replace("%", "").strip()
                     if not name or name.lower() in {"nan", "none"}:
@@ -234,11 +234,11 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                         asset_class = "FIXED_INCOME"
                     elif explicit_class:
                         asset_class = explicit_class if explicit_class in {"EQUITY", "COMMODITY", "FIXED_INCOME", "CASH", "OTHER"} else "UNCLASSIFIED"
-                    elif isin.startswith(("INE", "US", "CA", "GB", "JP", "HK")) or sector:
+                    elif isin.startswith(("INE", "US", "CA", "GB", "JP", "HK")) or sector or scheme_context_verified:
                         asset_class = "EQUITY"
                     else:
                         asset_class = "UNCLASSIFIED"
-                    if not isin and asset_class not in {"CASH", "COMMODITY", "FIXED_INCOME"}:
+                    if not isin and asset_class not in {"CASH", "COMMODITY", "FIXED_INCOME", "EQUITY"}:
                         continue
                     rows.append({
                         "symbol": name,
