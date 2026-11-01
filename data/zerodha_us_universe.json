@@ -1,7 +1,21 @@
 {
   "source": "User manually verified in Zerodha Kite Global Stocks",
-  "verified_on": "2026-11-01T07:22:49.884838+00:00",
+  "verified_on": "2026-11-01T07:25:33.032562+00:00",
   "instruments": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple",
+      "type": "STOCK",
+      "primary_exchange": "OTHER",
+      "zerodha_eligible": true,
+      "eligibility_status": "ZERODHA_VERIFIED",
+      "verified_on": "2026-11-01T07:24:10.959727+00:00",
+      "verification_method": "USER_CONFIRMED_IN_KITE_GLOBAL_STOCKS",
+      "eligibility_notes": "User manually confirmed that this exact symbol is searchable in their Zerodha Kite Global Stocks / International segment.",
+      "category": "Technology hardware",
+      "currency": "USD",
+      "india_inx_exchange_supported": true
+    },
     {
       "symbol": "BRK-B",
       "name": "Berkshire Hathaway",
@@ -17,6 +31,20 @@
       "india_inx_exchange_supported": true
     },
     {
+      "symbol": "COST",
+      "name": "Costco",
+      "type": "STOCK",
+      "primary_exchange": "NASDAQ",
+      "zerodha_eligible": true,
+      "eligibility_status": "ZERODHA_VERIFIED",
+      "verified_on": "2026-11-01T07:25:33.032562+00:00",
+      "verification_method": "USER_CONFIRMED_IN_KITE_GLOBAL_STOCKS",
+      "eligibility_notes": "User manually confirmed that this exact symbol is searchable in their Zerodha Kite Global Stocks / International segment.",
+      "category": "Consumer staples retail",
+      "currency": "USD",
+      "india_inx_exchange_supported": true
+    },
+    {
       "symbol": "CVX",
       "name": "Chevron",
       "type": "STOCK",
@@ -27,6 +55,20 @@
       "verification_method": "USER_CONFIRMED_IN_KITE_GLOBAL_STOCKS",
       "eligibility_notes": "User manually confirmed that this exact symbol is searchable in their Zerodha Kite Global Stocks / International segment.",
       "category": "Energy",
+      "currency": "USD",
+      "india_inx_exchange_supported": true
+    },
+    {
+      "symbol": "DIS",
+      "name": "Walt Disney",
+      "type": "STOCK",
+      "primary_exchange": "NYSE",
+      "zerodha_eligible": true,
+      "eligibility_status": "ZERODHA_VERIFIED",
+      "verified_on": "2026-11-01T07:24:44.868224+00:00",
+      "verification_method": "USER_CONFIRMED_IN_KITE_GLOBAL_STOCKS",
+      "eligibility_notes": "User manually confirmed that this exact symbol is searchable in their Zerodha Kite Global Stocks / International segment.",
+      "category": "Media and entertainment",
       "currency": "USD",
       "india_inx_exchange_supported": true
     }
