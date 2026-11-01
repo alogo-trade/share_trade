@@ -34,3 +34,65 @@ def test_unowned_instrument_is_not_marked_owned_when_score_missing():
     assert records[0]["already_owned"] is False
     assert records[0]["portfolio_current_value"] == 0.0
     assert records[0]["portfolio_position_pct"] == 0.0
+
+
+
+def test_portfolio_summary_counts_holdings_outside_screened_universe():
+    from stock_etf.portfolio import portfolio_summary
+
+    holdings = {
+        "MATCHED": {"current_value": 50.0, "invested_value": 40.0},
+        "UNSCREENED_ETF": {"current_value": 30.0, "invested_value": 25.0},
+        "UNKNOWN": {"current_value": 20.0, "invested_value": 20.0},
+    }
+    records = [
+        {"symbol": "MATCHED", "instrument_type": "STOCK", "sector": "Technology"}
+    ]
+    universe = [
+        {"symbol": "MATCHED", "type": "STOCK"},
+        {"symbol": "UNSCREENED_ETF", "type": "ETF"},
+    ]
+
+    summary = portfolio_summary(holdings, records, universe)
+
+    assert summary["holdings_count"] == 3
+    assert summary["current_value"] == 100.0
+    assert summary["coverage"]["holdings_in_full_universe_count"] == 2
+    assert summary["coverage"]["holdings_outside_full_universe_count"] == 1
+    assert summary["coverage"]["holdings_in_screened_universe_count"] == 1
+    assert summary["coverage"]["holdings_outside_screened_universe_count"] == 2
+    assert summary["asset_class_exposure_pct"] == {
+        "STOCK": 50.0, "ETF": 30.0, "UNCLASSIFIED": 20.0
+    }
+    assert summary["sector_exposure_pct"] == {"Technology": 50.0}
+    assert summary["sector_unclassified_current_value"] == 50.0
+
+
+def test_sector_exposure_uses_total_portfolio_denominator():
+    from stock_etf.portfolio import calculate_sector_exposure
+
+    holdings = {
+        "TECH": {"current_value": 40.0},
+        "UNCLASSIFIED": {"current_value": 60.0},
+    }
+    records = [{"symbol": "TECH", "instrument_type": "STOCK", "sector": "Technology"}]
+
+    assert calculate_sector_exposure(records, holdings) == {"Technology": 40.0}
+
+
+def test_load_holdings_supports_symbol_keyed_broker_payload(tmp_path):
+    import json
+    from stock_etf.portfolio import load_holdings
+
+    path = tmp_path / "holdings.json"
+    path.write_text(json.dumps({
+        "holdings": {
+            "HCLTECH": {"current_value": 100.0},
+            "GOLDBEES": {"current_value": 200.0},
+        }
+    }), encoding="utf-8")
+
+    loaded = load_holdings(path)
+
+    assert set(loaded) == {"HCLTECH", "GOLDBEES"}
+    assert loaded["HCLTECH"]["symbol"] == "HCLTECH"
