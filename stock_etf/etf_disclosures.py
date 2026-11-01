@@ -52,7 +52,7 @@ ALLOWED_SOURCE_HOSTS = {
 SOURCE_PAGES = {
     "nippon": "https://mf.nipponindiaim.com/investor-service/downloads/factsheet-portfolio-and-other-disclosures",
     "hdfc": "https://www.hdfcfund.com/statutory-disclosure/portfolio/monthly-portfolio",
-    "mirae": "https://www.miraeassetmf.co.in/downloads/statutory-disclosure/other-disclosure",
+    "mirae": "https://www.miraeassetmf.co.in/downloads/portfolio",
     "motilal": "https://www.motilaloswalmf.com/mutual-funds/motilal-oswal-nasdaq-100-etf",
     "sbi": "https://www.sbimf.com/portfolios",
     "icici": "https://www.icicipruamc.com/media-center/downloads?currentTabFilter=otherSchemeDisclosures&subCatTabFilter=MonthlyPortfolioDisclosures",
