@@ -142,10 +142,7 @@ def _download_candidates(
     page_url = SOURCE_PAGES.get(source)
     if not page_url:
         return [], "official_source_not_configured"
-    page_urls = (
-        "https://www.icicipruamc.com/Downloads/MonthlyPortfolioDisclosure.aspx",
-    ) if source == "icici" else ()
-    page_urls = (page_url,) + tuple(url for url in page_urls if url != page_url)
+    page_urls = (page_url,)
     page_text = None
     fetch_errors = []
     for candidate_page_url in page_urls:
