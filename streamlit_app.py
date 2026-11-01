@@ -26,6 +26,10 @@ from stock_etf.zerodha import (
     get_redirect_url,
     refresh_holdings,
 )
+from stock_etf.us_universe import (
+    load_candidate_metadata,
+    save_verified_us_instrument,
+)
 
 
 load_dotenv()
@@ -104,6 +108,16 @@ PROFILE_PATH = ROOT / os.getenv(
 HOLDINGS_PATH = ROOT / os.getenv(
     "ZERODHA_HOLDINGS_PATH",
     "backend_state/zerodha_holdings.json",
+)
+
+US_UNIVERSE_PATH = ROOT / os.getenv(
+    "ZERODHA_US_UNIVERSE_PATH",
+    "data/zerodha_us_universe.json",
+)
+
+US_CANDIDATE_UNIVERSE_PATH = ROOT / os.getenv(
+    "US_CANDIDATE_UNIVERSE_PATH",
+    "data/us_candidate_universe.json",
 )
 
 DECISION_CONFIG_PATH = ROOT / os.getenv(
@@ -730,6 +744,73 @@ def main():
             key="market_scope",
             help="India only skips US research. US only skips NSE discovery and analysis. Hybrid runs both markets.",
         )
+
+        with st.expander("Manually verify a US symbol in Zerodha", expanded=False):
+            st.caption(
+                "Search the exact ticker in Kite > International / Global Stocks first. "
+                "This records your confirmation; it does not claim an API lookup or place an order."
+            )
+            with st.form("manual_us_symbol_verification"):
+                manual_symbol = st.text_input(
+                    "US ticker",
+                    placeholder="AAPL",
+                    max_chars=15,
+                ).strip().upper()
+                candidate_metadata = load_candidate_metadata(
+                    US_CANDIDATE_UNIVERSE_PATH,
+                    manual_symbol,
+                ) if manual_symbol else {}
+                manual_name = st.text_input(
+                    "Company / ETF name",
+                    value=str(candidate_metadata.get("name") or ""),
+                    placeholder="Apple Inc.",
+                )
+                manual_type = st.selectbox(
+                    "Instrument type",
+                    ["STOCK", "ETF"],
+                    index=1 if str(candidate_metadata.get("type", "")).upper() == "ETF" else 0,
+                )
+                exchange_options = ["NASDAQ", "NYSE", "NYSE_ARCA", "OTHER"]
+                candidate_exchange = str(candidate_metadata.get("primary_exchange") or "NASDAQ").upper()
+                manual_exchange = st.selectbox(
+                    "Primary exchange",
+                    exchange_options,
+                    index=exchange_options.index(candidate_exchange)
+                    if candidate_exchange in exchange_options else 0,
+                )
+                manual_confirmed = st.checkbox(
+                    "I searched this exact ticker in my Zerodha Kite Global Stocks account "
+                    "and confirmed it is available.",
+                    value=False,
+                )
+                manual_submit = st.form_submit_button(
+                    "Save as Zerodha verified",
+                    type="primary",
+                )
+            if manual_submit:
+                try:
+                    saved_row = save_verified_us_instrument(
+                        US_UNIVERSE_PATH,
+                        {
+                            "symbol": manual_symbol,
+                            "name": manual_name,
+                            "type": manual_type,
+                            "primary_exchange": manual_exchange,
+                            "category": candidate_metadata.get("category"),
+                            "industry": candidate_metadata.get("industry"),
+                            "currency": candidate_metadata.get("currency", "USD"),
+                            "india_inx_exchange_supported": candidate_metadata.get(
+                                "india_inx_exchange_supported"
+                            ),
+                        },
+                        user_confirmed=manual_confirmed,
+                    )
+                    st.success(
+                        f"{saved_row['symbol']} saved as ZERODHA_VERIFIED. "
+                        "Run analysis again to include it in US research."
+                    )
+                except (ValueError, RuntimeError, OSError) as exc:
+                    st.error(f"Could not verify US symbol: {exc}")
 
         st.divider()
         st.header(
