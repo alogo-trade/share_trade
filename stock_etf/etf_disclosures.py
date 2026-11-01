@@ -39,6 +39,15 @@ ETF_SOURCES = {
     "SBIGOLD": ("sbi", ("SBI Gold ETF",)),
 }
 
+ALLOWED_SOURCE_HOSTS = {
+    "nippon": ("mf.nipponindiaim.com", "portal.amfiindia.com"),
+    "hdfc": ("hdfcfund.com",),
+    "mirae": ("miraeassetmf.co.in",),
+    "motilal": ("motilaloswalmf.com",),
+    "sbi": ("sbimf.com",),
+    "icici": ("icicipruamc.com",),
+}
+
 SOURCE_PAGES = {
     "nippon": "https://mf.nipponindiaim.com/investor-service/downloads/factsheet-portfolio-and-other-disclosures",
     "hdfc": "https://www.hdfcfund.com/statutory-disclosure/portfolio/monthly-portfolio",
@@ -143,7 +152,10 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
     for label, href in link_items:
         absolute = urljoin(page_url, href)
         parsed = urlparse(absolute)
-        if parsed.scheme not in {"http", "https"}:
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            continue
+        allowed_hosts = ALLOWED_SOURCE_HOSTS.get(source, ())
+        if not any(parsed.hostname == host or parsed.hostname.endswith("." + host) for host in allowed_hosts):
             continue
         label_norm = _normalise(label)
         href_norm = _normalise(absolute)
