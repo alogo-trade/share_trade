@@ -516,3 +516,32 @@ def test_manual_us_symbol_verification_rejects_invalid_symbols_and_types(tmp_pat
             user_confirmed=True,
         )
     assert not (tmp_path / "universe.json").exists()
+
+
+
+def test_manual_us_symbol_verification_ignores_index_membership(tmp_path):
+    import json
+
+    from stock_etf.us_universe import save_verified_us_instrument
+
+    path = tmp_path / "zerodha_us_universe.json"
+    saved = save_verified_us_instrument(
+        path,
+        {
+            "symbol": "AAPL",
+            "name": "Apple Inc.",
+            "type": "STOCK",
+            "primary_exchange": "NASDAQ",
+            "indices": ["S&P 500", "Nasdaq-100"],
+            "index_membership": ["S&P 500", "Nasdaq-100"],
+            "index_membership_source": "should_not_be_saved",
+        },
+        user_confirmed=True,
+    )
+
+    persisted = json.loads(path.read_text(encoding="utf-8"))["instruments"][0]
+    assert saved["symbol"] == "AAPL"
+    assert persisted["zerodha_eligible"] is True
+    assert "indices" not in persisted
+    assert "index_membership" not in persisted
+    assert "index_membership_source" not in persisted
