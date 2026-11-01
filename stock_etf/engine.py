@@ -57,6 +57,24 @@ def _run_us_research_for_scope(settings: Settings, market_scope: str) -> dict:
         return {"status": "error", "message": str(exc), "instruments": [], "news": []}
 
 
+def _merge_news_items(*groups: list[dict]) -> list[dict]:
+    """Merge market-news providers without duplicating the same article."""
+    merged = []
+    seen = set()
+    for group in groups:
+        for item in group or []:
+            if not isinstance(item, dict):
+                continue
+            link = str(item.get("link") or "").split("?")[0].rstrip("/").lower()
+            title = " ".join(str(item.get("title") or "").lower().split())
+            key = link or title
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+    return merged
+
+
 def _dividend_yield_coverage(records: list[dict]) -> dict:
     """Summarize yield calculation and history-retrieval coverage for the NSE universe."""
     yield_counts = {}
@@ -643,6 +661,9 @@ def run(
     # ------------------------------------------------------------------
 
     us_research = _run_us_research_for_scope(settings, market_scope)
+    us_news = us_research.get("news") or []
+    combined_market_news = _merge_news_items(relevant, us_news)
+    combined_news_errors = (news_errors or []) + (us_research.get("news_errors") or [])
 
     result = {
         "metadata": {
@@ -728,14 +749,14 @@ def run(
         # --------------------------------------------------------------
 
         "market": {
-            "relevant_news": relevant,
+            "relevant_news": combined_market_news,
 
             "news_found": len(
-                news
+                combined_market_news
             ),
 
             "news_errors": (
-                news_errors[-20:]
+                combined_news_errors[-40:]
             ),
 
             "news_search_links": (
