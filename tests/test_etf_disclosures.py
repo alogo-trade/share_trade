@@ -14,6 +14,7 @@ def test_parse_as_of_handles_full_and_abbreviated_months():
     assert _parse_as_of("Monthly portfolio as on 30 September 2026") == "2026-09-30"
     assert _parse_as_of("Monthly Portfolio Sep 2026.xlsx") == "2026-09-30"
     assert _parse_as_of("Portfolio as on 30th September 2026") == "2026-09-30"
+    assert _parse_as_of("period ended September 30, 2026") == "2026-09-30"
 
 
 def test_column_index_normalises_percent_headers():
