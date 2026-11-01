@@ -111,7 +111,6 @@ def _screen_query(instrument_type: str):
             "Upgrade it with: python -m pip install --upgrade 'yfinance>=1.7.0,<2'."
         )
     if instrument_type == "STOCK":
-        query = query
         return query("and", [
             query("eq", ["region", "us"]),
             query("gte", ["intradaymarketcap", float(os.getenv("US_MIN_MARKET_CAP_USD", "2000000000"))]),
