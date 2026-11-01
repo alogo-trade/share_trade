@@ -132,6 +132,7 @@ class Settings:
     us_universe_path: str = os.getenv("ZERODHA_US_UNIVERSE_PATH", "data/zerodha_us_universe.json")
     us_candidate_universe_path: str = os.getenv("US_CANDIDATE_UNIVERSE_PATH", "data/us_candidate_universe.json")
     us_analysis_limit: int = int(os.getenv("US_ANALYSIS_UNIVERSE_LIMIT", "30"))
+    us_dynamic_discovery_enabled: bool = os.getenv("US_DYNAMIC_DISCOVERY_ENABLED", "true").lower() in {"1", "true", "yes"}
 
     # Configurable pre-LLM decision provider. RULES remains the safe default.
     decision_provider: str = os.getenv("DECISION_PROVIDER", "RULES").strip().upper()
