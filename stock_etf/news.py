@@ -336,3 +336,31 @@ def search_links(instruments, limit=20):
         links.append(_google_search_link(query, category.replace('_', ' ').title()))
     return links[:limit]
 
+
+
+US_MARKET_THEMES = [
+    ("US_MACRO", "United States Federal Reserve interest rates inflation employment GDP economy"),
+    ("US_POLICY", "United States federal government fiscal policy regulation tariffs trade policy"),
+    ("US_TECH", "United States technology semiconductor AI cloud cybersecurity regulation"),
+    ("US_ENERGY", "United States crude oil natural gas electricity energy markets"),
+    ("US_GEOPOLITICS", "United States global geopolitics sanctions trade conflict supply chains"),
+    ("US_CONSUMER", "United States consumer spending retail housing credit employment"),
+    ("US_HEALTHCARE", "United States healthcare pharmaceuticals FDA drug pricing policy"),
+    ("US_MARKET", "United States stock market earnings corporate guidance market volatility"),
+]
+
+
+def fetch_us_market_news(limit=40, max_age_days=30):
+    """Collect broad US-market news independent of ticker-specific news."""
+    failures = []
+    items = []
+    for category, query in US_MARKET_THEMES:
+        items.extend(_feed(_google(query), "Google News", category, failures))
+        if len(items) >= limit:
+            break
+    if len(items) < min(20, limit):
+        for category, query in US_MARKET_THEMES[:5]:
+            items.extend(_feed(_bing(query), "Bing News", category, failures))
+            if len(items) >= limit:
+                break
+    return _dedupe(items, limit, max_age_days=max_age_days), failures
