@@ -185,6 +185,8 @@ def _build_us_ranking(instruments: list[dict[str, Any]], shortlist_limit: int = 
             continue
         row["research_rank"] = None
         row["research_only"] = row.get("eligibility_status") != "ZERODHA_VERIFIED"
+        # Yahoo Finance history is not a verified live Zerodha quote.
+        row["execution_ready"] = False
         ranked_rows.append(row)
 
     ranked_rows.sort(
@@ -216,6 +218,10 @@ def _build_us_ranking(instruments: list[dict[str, Any]], shortlist_limit: int = 
         "rejected": [],
         "unevaluated": unevaluated,
         "llm_candidates": [],
+        "execution_note": (
+            "Research ranking only. Yahoo Finance prices are not verified live Zerodha quotes; "
+            "no row is order-ready."
+        ),
         "counts": {
             "ranked": len(ranked_rows),
             "shortlist": len(shortlist),
