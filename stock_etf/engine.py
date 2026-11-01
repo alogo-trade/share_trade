@@ -229,7 +229,7 @@ def run(
             },
             "investor_profile": profile,
             "us_research": us_research,
-            "dividend_yield_coverage": {"instrument_count": 0, "yield_status_counts": {}, "history_status_counts": {}},
+            "dividend_yield_coverage": us_research.get("dividend_yield_coverage", {"instrument_count": 0, "yield_status_counts": {}, "history_status_counts": {}}),
             "decision_model": empty_decisions,
             "portfolio": {
                 "source": "zerodha_kite_connect" if holdings else "not_connected",
