@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date
 from pathlib import Path
 
 logger = logging.getLogger("stock_etf")
@@ -155,6 +156,7 @@ def load_cached_portfolio_metadata(
 def load_cached_etf_constituents(
     holdings: dict[str, dict],
     cache_dir: str | Path,
+    max_age_days: int = 40,
 ) -> list[dict]:
     """Load validated ETF holdings from cache without making network requests.
 
@@ -179,13 +181,28 @@ def load_cached_etf_constituents(
         if not isinstance(payload, dict):
             continue
 
-        underlying_class = str(payload.get("underlying_asset_class") or "").strip().upper()
-        if underlying_class not in allowed_classes:
-            underlying_class = ""
+        source_status = str(payload.get("source_status") or "").strip().upper()
         raw_constituents = payload.get("holdings", payload.get("constituents", []))
         if not isinstance(raw_constituents, list):
             raw_constituents = []
+        has_raw_constituents = bool(raw_constituents)
+        if has_raw_constituents:
+            try:
+                as_of = date.fromisoformat(str(payload.get("as_of") or ""))
+                age_days = (date.today() - as_of).days
+            except (TypeError, ValueError):
+                logger.warning("Ignoring ETF constituent cache for %s: missing/invalid as_of date.", symbol)
+                continue
+            if age_days < 0 or age_days > max_age_days:
+                logger.warning(
+                    "Ignoring stale ETF constituent cache for %s: as_of=%s age_days=%d max_age_days=%d.",
+                    symbol, as_of.isoformat(), age_days, max_age_days,
+                )
+                continue
 
+        underlying_class = str(payload.get("underlying_asset_class") or "").strip().upper()
+        if underlying_class not in allowed_classes:
+            underlying_class = ""
         constituents = []
         total_weight = 0.0
         for item in raw_constituents:
@@ -219,6 +236,7 @@ def load_cached_etf_constituents(
             continue
         rows.append({
             "symbol": symbol,
+            "source_status": source_status or ("SCHEME_IDENTITY_ONLY" if not constituents else "CONSTITUENTS"),
             "source": str(payload.get("source") or "UNSPECIFIED"),
             "as_of": payload.get("as_of"),
             "underlying_asset_class": underlying_class or None,
@@ -254,13 +272,18 @@ def _etf_sector_values(
     sector_attributed_value = 0.0
     constituent_value = 0.0
     sector_attributed_symbols = 0
+    constituent_cache_symbols = {
+        symbol for symbol, row in cache_by_symbol.items()
+        if row.get("constituents")
+    }
     for symbol in etf_symbols:
         etf_value = _holding_value(holdings[symbol])
         cached = cache_by_symbol.get(symbol)
         if not cached:
             continue
-        covered_value += etf_value
         constituents = cached.get("constituents") or []
+        if constituents:
+            covered_value += etf_value
         total_weight = 0.0
         symbol_has_sector = False
         for item in constituents:
@@ -289,7 +312,7 @@ def _etf_sector_values(
         if symbol_has_sector:
             sector_attributed_symbols += 1
 
-    missing_count = len(etf_symbols) - sum(symbol in cache_by_symbol for symbol in etf_symbols)
+    missing_count = len(etf_symbols) - sum(symbol in constituent_cache_symbols for symbol in etf_symbols)
     diagnostics = {
         "status": (
             "not_applicable" if not etf_symbols
@@ -297,8 +320,12 @@ def _etf_sector_values(
             else "partial"
         ),
         "etf_holdings_count": len(etf_symbols),
-        "etf_lookthrough_available_count": len(etf_symbols) - missing_count,
+        "etf_lookthrough_available_count": len(constituent_cache_symbols.intersection(etf_symbols)),
         "etf_lookthrough_missing_count": missing_count,
+        "etf_classification_only_count": sum(
+            symbol in cache_by_symbol and not cache_by_symbol[symbol].get("constituents")
+            for symbol in etf_symbols
+        ),
         "etf_total_current_value": round(etf_total_value, 2),
         "etf_value_with_cached_data": round(covered_value, 2),
         "etf_value_without_cached_data": round(max(0.0, etf_total_value - covered_value), 2),
@@ -306,7 +333,12 @@ def _etf_sector_values(
         "etf_sector_attributed_value": round(sector_attributed_value, 2),
         "etf_sector_attributed_holdings_count": sector_attributed_symbols,
         "cache_sources": [
-            {"symbol": symbol, "source": row.get("source"), "as_of": row.get("as_of")}
+            {
+                "symbol": symbol,
+                "source": row.get("source"),
+                "as_of": row.get("as_of"),
+                "status": row.get("source_status"),
+            }
             for symbol, row in sorted(cache_by_symbol.items())
         ],
         "constituent_weight_coverage_pct": (
