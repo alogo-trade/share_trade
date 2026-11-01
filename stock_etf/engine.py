@@ -238,12 +238,18 @@ def run(
                 "summary": portfolio_info,
                 "instrument_context": [],
             },
-            "market": {"relevant_news": [], "news_found": 0, "news_errors": [], "news_search_links": []},
-            "evaluated_instruments": [],
-            "local_ranking": {
-                "ranked": [], "actionable": [], "held": [], "rejected": [],
-                "unevaluated": [], "shortlist": [], "llm_candidates": [],
+            "market": {
+                "relevant_news": us_research.get("news", []),
+                "news_found": len(us_research.get("news", [])),
+                "news_errors": us_research.get("news_errors", []),
+                "news_search_links": [],
             },
+            "evaluated_instruments": [],
+            "local_ranking": us_research.get("ranking", {
+                "status": "unavailable", "ranked": [], "actionable": [],
+                "held": [], "rejected": [], "unevaluated": [],
+                "shortlist": [], "llm_candidates": [],
+            }),
             "reviews": {"deterministic": [], "llm": [], "llm_status": "not_run", "prompt_tokens": 0},
         }
         output_path = Path(settings.output_path)
