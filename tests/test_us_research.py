@@ -245,14 +245,26 @@ def test_us_only_mode_skips_nse_pipeline_and_writes_compatible_result(tmp_path, 
     assert output.exists()
 
 
-def test_india_only_mode_skips_us_research(monkeypatch):
+
+
+def test_india_only_scope_skips_us_research(monkeypatch):
     from stock_etf.config import Settings
-    import stock_etf.engine as engine
+    from stock_etf.engine import _run_us_research_for_scope
 
     settings = Settings(market_scope="INDIA_ONLY", us_research_enabled=True)
-    monkeypatch.setattr(engine, "run_us_research", lambda *args: (_ for _ in ()).throw(
+    monkeypatch.setattr("stock_etf.engine.run_us_research", lambda *args: (_ for _ in ()).throw(
         AssertionError("US research must not run in INDIA_ONLY mode")
     ))
-    # Assert the branch behavior through the source-independent helper is not practical
-    # without a complete mocked NSE pipeline; configuration is validated separately.
-    assert settings.market_scope == "INDIA_ONLY"
+
+    result = _run_us_research_for_scope(settings, "INDIA_ONLY")
+
+    assert result["status"] == "skipped"
+    assert result["instruments"] == []
+
+
+def test_us_research_disabled_is_respected():
+    from stock_etf.config import Settings
+    from stock_etf.engine import _run_us_research_for_scope
+
+    result = _run_us_research_for_scope(Settings(us_research_enabled=False), "HYBRID")
+    assert result["status"] == "disabled"
