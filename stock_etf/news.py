@@ -350,17 +350,44 @@ US_MARKET_THEMES = [
 ]
 
 
-def fetch_us_market_news(limit=40, max_age_days=30):
-    """Collect broad US-market news independent of ticker-specific news."""
+def fetch_us_market_news(limit=40, max_age_days=14):
+    """Collect fresh US news with category balancing to prevent one theme dominating."""
     failures = []
     items = []
+    category_order = [category for category, _ in US_MARKET_THEMES]
     for category, query in US_MARKET_THEMES:
-        items.extend(_feed(_google(query), "Google News", category, failures))
-        if len(items) >= limit:
-            break
-    if len(items) < min(20, limit):
-        for category, query in US_MARKET_THEMES[:5]:
-            items.extend(_feed(_bing(query), "Bing News", category, failures))
-            if len(items) >= limit:
-                break
-    return _dedupe(items, limit, max_age_days=max_age_days), failures
+        rows = _feed(_google(query), "Google News", category, failures)
+        for row in rows:
+            row["category"] = category
+        items.extend(rows)
+
+    # Use Bing only for themes with no Google results, rather than duplicating
+    # already-covered categories and exhausting the result limit early.
+    present = {row.get("category") for row in items}
+    for category, query in US_MARKET_THEMES:
+        if category in present:
+            continue
+        rows = _feed(_bing(query), "Bing News", category, failures)
+        for row in rows:
+            row["category"] = category
+        items.extend(rows)
+
+    deduped = _dedupe(
+        items,
+        max(limit * max(1, len(category_order)), limit),
+        max_age_days=max_age_days,
+    )
+    buckets = {
+        category: [row for row in deduped if row.get("category") == category]
+        for category in category_order
+    }
+    balanced = []
+    while len(balanced) < max(0, limit) and any(buckets.values()):
+        for category in category_order:
+            if buckets[category] and len(balanced) < limit:
+                balanced.append(buckets[category].pop(0))
+    logger.info(
+        "US news freshness/category filter: received=%d retained=%d categories=%d max_age_days=%d",
+        len(items), len(balanced), len({row.get("category") for row in balanced}), max_age_days,
+    )
+    return balanced, failures
