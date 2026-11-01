@@ -118,3 +118,46 @@ def test_mirae_monthly_portfolio_adapter_uses_official_portfolio_page():
     assert error is None
     assert len(candidates) == 1
     assert "MAHKTECH-portfolio.xlsx" in candidates[0][0]
+
+
+
+def test_pdf_disclosure_table_parser_extracts_scheme_holdings(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from stock_etf.etf_disclosures import _extract_rows, _read_workbook
+
+    class Page:
+        def extract_text(self):
+            return "ICICI Prudential Nifty 50 ETF Portfolio as on 30 September 2026"
+
+        def extract_tables(self):
+            return [[
+                ["Company/Issuer", "ISIN", "% to NAV", "Industry"],
+                ["Reliance Industries Limited", "INE002A01018", "8.25%", "Energy"],
+                ["HDFC Bank Limited", "INE040A01034", "7.50%", "Banks"],
+            ]]
+
+    class PDF:
+        pages = [Page()]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    monkeypatch.setitem(sys.modules, "pdfplumber", SimpleNamespace(open=lambda _payload: PDF()))
+    frames = _read_workbook(
+        b"fake-pdf",
+        "https://digitalfactsheet.icicipruamc.com/passive/pdf/passive-fund-factsheet-september-2026.pdf",
+    )
+    rows, error = _extract_rows(
+        frames,
+        ("ICICI Prudential Nifty 50 ETF",),
+    )
+
+    assert error is None
+    assert len(rows) == 2
+    assert rows[0]["weight_pct"] == 8.25
+    assert rows[0]["sector"] == "Energy"
