@@ -188,7 +188,7 @@ def _download_candidates(
     # Some AMC sites embed the downloadable workbook path in page JSON rather
     # than an anchor element (Motilal's scheme pages use portfolioUrl).
     embedded_paths = re.findall(
-        r"""(?:https?://[^\s"'<>]+|/[^\s"'<>]+)\.(?:xlsx?|csv)(?:\?[^\s"'<>]*)?""",
+        r"""(?:https?://[^\s"'<>]+|/[^\s"'<>]+)\.(?:xlsx?|csv|pdf)(?:\?[^\s"'<>]*)?""",
         page_text,
         flags=re.I,
     )
@@ -211,7 +211,8 @@ def _download_candidates(
             continue
         alias_match = any(alias and (alias in text or alias in label_norm) for alias in aliases_norm)
         generic_monthly = "monthly portfolio" in text or "month end portfolio" in text
-        if alias_match or (source in {"nippon", "mirae"} and generic_monthly) or (source == "motilal" and page_confirms_scheme):
+        generic_factsheet = source == "icici" and page_confirms_scheme and "factsheet" in text
+        if alias_match or (source in {"nippon", "mirae"} and generic_monthly) or (source == "motilal" and page_confirms_scheme) or generic_factsheet:
             candidate_label = label or absolute
             if source == "motilal" and page_confirms_scheme and motilal_page_as_of:
                 candidate_label = f"{candidate_label} as on {date.fromisoformat(motilal_page_as_of).strftime('%d %b %Y')}"
