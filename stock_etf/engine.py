@@ -29,6 +29,31 @@ from .us_engine import run_us_research
 
 logger = logging.getLogger("stock_etf")
 
+
+def _run_us_research_for_scope(settings: Settings, market_scope: str) -> dict:
+    """Run US research only when the selected market scope includes the US."""
+    if market_scope == "INDIA_ONLY":
+        return {
+            "status": "skipped",
+            "reason": "Market scope is INDIA_ONLY.",
+            "instruments": [],
+            "news": [],
+        }
+    if not settings.us_research_enabled:
+        return {"status": "disabled", "instruments": [], "news": []}
+    try:
+        return run_us_research(
+            settings.us_universe_path,
+            settings.history_period,
+            settings.us_analysis_limit,
+            settings.cache_dir,
+            settings.us_candidate_universe_path,
+        )
+    except Exception as exc:
+        logger.exception("US research failed independently of NSE analysis")
+        return {"status": "error", "message": str(exc), "instruments": [], "news": []}
+
+
 def _dividend_yield_coverage(records: list[dict]) -> dict:
     """Summarize yield calculation and history-retrieval coverage for the NSE universe."""
     yield_counts = {}
@@ -131,21 +156,7 @@ def run(
     # US-only mode deliberately exits before NSE universe discovery,
     # liquidity screening, and NSE market-data collection.
     if market_scope == "US_ONLY":
-        try:
-            us_research = (
-                run_us_research(
-                    settings.us_universe_path,
-                    settings.history_period,
-                    settings.us_analysis_limit,
-                    settings.cache_dir,
-                    settings.us_candidate_universe_path,
-                )
-                if settings.us_research_enabled
-                else {"status": "disabled", "instruments": [], "news": []}
-            )
-        except Exception as exc:
-            logger.exception("US research failed")
-            us_research = {"status": "error", "message": str(exc), "instruments": [], "news": []}
+        us_research = _run_us_research_for_scope(settings, market_scope)
 
         empty_decisions = {
             "provider": "NOT_RUN",
@@ -577,24 +588,7 @@ def run(
     # Result
     # ------------------------------------------------------------------
 
-    if market_scope == "INDIA_ONLY":
-        us_research = {"status": "skipped", "reason": "Market scope is INDIA_ONLY.", "instruments": [], "news": []}
-    else:
-        try:
-            us_research = (
-                run_us_research(
-                    settings.us_universe_path,
-                    settings.history_period,
-                    settings.us_analysis_limit,
-                    settings.cache_dir,
-                    settings.us_candidate_universe_path,
-                )
-                if settings.us_research_enabled
-                else {"status": "disabled", "instruments": [], "news": []}
-            )
-        except Exception as exc:
-            logger.exception("US research failed independently of NSE analysis")
-            us_research = {"status": "error", "message": str(exc), "instruments": [], "news": []}
+    us_research = _run_us_research_for_scope(settings, market_scope)
 
     result = {
         "metadata": {
