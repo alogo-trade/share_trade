@@ -22,6 +22,14 @@ class Settings:
         "cache",
     )
 
+    etf_disclosure_refresh_enabled: bool = os.getenv(
+        "ETF_DISCLOSURE_REFRESH_ENABLED", "true"
+    ).lower() in {"1", "true", "yes"}
+
+    etf_disclosure_max_age_days: int = int(
+        os.getenv("ETF_DISCLOSURE_MAX_AGE_DAYS", "40")
+    )
+
     nse_universe_cache: str = os.getenv(
         "NSE_UNIVERSE_CACHE",
         "cache/nse_universe.json",
