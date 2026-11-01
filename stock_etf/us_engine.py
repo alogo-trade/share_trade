@@ -238,10 +238,32 @@ def run_us_research(
     limit: int = 30,
     cache_dir: str = "cache",
     candidate_path: str = "data/us_candidate_universe.json",
+    dynamic_discovery: bool = False,
 ) -> dict[str, Any]:
-    """Research verified and candidate US instruments. Never places trades."""
+    """Research dynamic liquid US listings and manually verified Zerodha instruments."""
     verified = load_us_universe(universe_path)
-    candidates = load_us_candidates(candidate_path)
+    discovery: dict[str, Any] | None = None
+    discovery_error: str | None = None
+    if dynamic_discovery:
+        from .us_discovery import discover_liquid_us_universe
+
+        try:
+            discovery = discover_liquid_us_universe(
+                Path(cache_dir) / "us_discovered_universe.json"
+            )
+            candidates = _normalise_rows(
+                [
+                    row for row in discovery.get("instruments", [])
+                    if row.get("zerodha_eligible") is not True
+                ],
+                "CANDIDATE_UNVERIFIED",
+            )
+        except Exception as exc:
+            discovery_error = f"{type(exc).__name__}: {exc}"[:300]
+            logger.exception("Dynamic US discovery failed; retaining manually verified instruments")
+            candidates = []
+    else:
+        candidates = load_us_candidates(candidate_path)
     merged = {item["symbol"]: item for item in candidates}
     merged.update({item["symbol"]: item for item in verified})
     # Verified instruments first. Within each eligibility tier, alternate
@@ -255,7 +277,10 @@ def run_us_research(
         by_type = {
             kind: sorted(
                 [item for item in bucket if item["type"] == kind],
-                key=lambda item: item["symbol"],
+                key=lambda item: (
+                    -float((item.get("discovery_metrics") or {}).get("average_daily_volume_3m") or 0),
+                    item["symbol"],
+                ),
             )
             for kind in ("STOCK", "ETF")
         }
@@ -268,9 +293,11 @@ def run_us_research(
         universe = universe[:limit]
     if not universe:
         return {
-            "status": "universe_not_configured",
-            "verified_count": 0,
+            "status": "discovery_error" if discovery_error else "universe_not_configured",
+            "status_reason": discovery_error or "No US instruments are available for research.",
+            "verified_count": len(verified),
             "candidate_count": 0,
+            "discovery": discovery,
             "instruments": [],
             "news": [],
         }
@@ -515,8 +542,19 @@ def run_us_research(
         "universe_sources": {
             "verified": "Manually verified Zerodha Kite Global Stocks list",
             "candidates": (
-                "Curated public-market research watchlist; "
-                "Zerodha eligibility not confirmed"
+                "Dynamic Nasdaq Trader listing directory screened by Yahoo Finance "
+                "for market capitalisation, fund assets and average daily volume"
+                if dynamic_discovery
+                else "Configured candidate universe file; Zerodha eligibility not confirmed"
+            ),
+        },
+        "discovery": {
+            **(discovery or {}),
+            "error": discovery_error,
+            "dynamic_enabled": bool(dynamic_discovery),
+            "discovered_candidate_count": len(candidates),
+            "evaluated_candidate_count": sum(
+                row["eligibility_status"] == "CANDIDATE_UNVERIFIED" for row in results
             ),
         },
         "price_source": "Yahoo Finance; not Zerodha quotes",
