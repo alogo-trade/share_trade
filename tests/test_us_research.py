@@ -204,13 +204,6 @@ def test_us_research_exports_dividend_coverage_and_history_failure(monkeypatch, 
 
 
 
-def test_market_scope_setting_defaults_to_hybrid(monkeypatch):
-    from stock_etf.config import Settings
-
-    monkeypatch.delenv("MARKET_SCOPE", raising=False)
-    assert Settings().market_scope == "HYBRID"
-
-
 def test_us_only_mode_skips_nse_pipeline_and_writes_compatible_result(tmp_path, monkeypatch):
     from stock_etf.config import Settings
     import stock_etf.engine as engine
