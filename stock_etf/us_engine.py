@@ -278,7 +278,6 @@ def run_us_research(
     results, news = [], []
     for item in universe:
         symbol = item["symbol"]
-        metadata_observed_at = datetime.now(timezone.utc).isoformat()
         row = {
             "symbol": symbol,
             "type": item["type"],
@@ -451,6 +450,7 @@ def run_us_research(
         except Exception as exc:
             logger.warning("US data unavailable for %s: %s", symbol, exc)
             row["error"] = str(exc)
+        metadata_observed_at = datetime.now(timezone.utc).isoformat()
         metadata_fields = {
             "sector": ("sector", "sector_metadata_source"),
             "industry": ("industry", "industry_metadata_source"),
