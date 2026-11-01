@@ -298,6 +298,33 @@ def run_us_research(
             row["expense_ratio_metadata_source"] = (
                 "YAHOO_FINANCE" if expense_ratio is not None else "UNAVAILABLE"
             )
+            if item["type"] == "ETF":
+                try:
+                    funds_data = ticker.funds_data
+                    if funds_data is not None:
+                        top_holdings = funds_data.top_holdings
+                        if top_holdings is not None and not top_holdings.empty:
+                            row["top_holdings"] = (
+                                top_holdings.head(10).reset_index().to_dict(orient="records")
+                            )
+                            row["top_holdings_metadata_source"] = "YAHOO_FINANCE_FUNDS_DATA"
+                        sector_weights = funds_data.sector_weightings
+                        if isinstance(sector_weights, dict) and sector_weights:
+                            row["sector_weightings"] = sector_weights
+                            row["sector_weightings_metadata_source"] = "YAHOO_FINANCE_FUNDS_DATA"
+                        asset_classes = funds_data.asset_classes
+                        if isinstance(asset_classes, dict) and asset_classes:
+                            row["asset_classes"] = asset_classes
+                            row["asset_classes_metadata_source"] = "YAHOO_FINANCE_FUNDS_DATA"
+                except Exception as funds_exc:
+                    row["fund_metadata_error"] = (
+                        f"{type(funds_exc).__name__}: {funds_exc}"
+                    )[:240]
+                    logger.warning(
+                        "US ETF fund metadata unavailable for %s: %s",
+                        symbol,
+                        funds_exc,
+                    )
             dividend_history = None
             dividend_history_status = "FETCH_FAILED"
             dividend_history_error = None
@@ -365,6 +392,15 @@ def run_us_research(
     expense_ratio_count = sum(
         x.get("expense_ratio") is not None for x in results if x.get("type") == "ETF"
     )
+    top_holdings_count = sum(
+        bool(x.get("top_holdings")) for x in results if x.get("type") == "ETF"
+    )
+    sector_weightings_count = sum(
+        bool(x.get("sector_weightings")) for x in results if x.get("type") == "ETF"
+    )
+    asset_classes_count = sum(
+        bool(x.get("asset_classes")) for x in results if x.get("type") == "ETF"
+    )
     etf_count = sum(x.get("type") == "ETF" for x in results)
     return {
         "status": "partial" if verified_count == 0 or failed_count else "ok",
@@ -399,6 +435,9 @@ def run_us_research(
             "etf_count": etf_count,
             "etf_expense_ratio_count": expense_ratio_count,
             "etf_expense_ratio_missing_count": max(0, etf_count - expense_ratio_count),
+            "etf_top_holdings_count": top_holdings_count,
+            "etf_sector_weightings_count": sector_weightings_count,
+            "etf_asset_classes_count": asset_classes_count,
         },
         "news": news,
         "news_count": len(news),
