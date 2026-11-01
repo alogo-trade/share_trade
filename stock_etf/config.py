@@ -118,6 +118,8 @@ class Settings:
         "backend_state/zerodha_holdings.json",
     )
 
+    # Market coverage: INDIA_ONLY, US_ONLY, or HYBRID.
+    market_scope: str = os.getenv("MARKET_SCOPE", "HYBRID").strip().upper()
     us_research_enabled: bool = os.getenv("ENABLE_US_RESEARCH", "true").lower() in {"1", "true", "yes"}
     us_universe_path: str = os.getenv("ZERODHA_US_UNIVERSE_PATH", "data/zerodha_us_universe.json")
     us_candidate_universe_path: str = os.getenv("US_CANDIDATE_UNIVERSE_PATH", "data/us_candidate_universe.json")
