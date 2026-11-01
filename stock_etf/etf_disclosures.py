@@ -351,6 +351,10 @@ def refresh_etf_disclosure_cache(
                 else:
                     response = session.get(url, timeout=TIMEOUT_SECONDS)
                     response.raise_for_status()
+                    final_host = urlparse(response.url).hostname or ""
+                    allowed_hosts = ALLOWED_SOURCE_HOSTS.get(source, ())
+                    if not any(final_host == host or final_host.endswith("." + host) for host in allowed_hosts):
+                        raise ValueError("disclosure_redirected_to_untrusted_host")
                     file_bytes = response.content
                     if len(file_bytes) > MAX_DOWNLOAD_BYTES:
                         raise ValueError("disclosure_exceeds_download_limit")
