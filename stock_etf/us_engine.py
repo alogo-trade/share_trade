@@ -277,7 +277,27 @@ def run_us_research(
                 else "CURATED_CATEGORY" if item.get("category")
                 else "UNAVAILABLE"
             )
-            row["expense_ratio"] = info.get("annualReportExpenseRatio")
+            expense_ratio = next(
+                (
+                    info.get(key) for key in (
+                        "annualReportExpenseRatio",
+                        "netExpenseRatio",
+                        "totalExpenseRatio",
+                    )
+                    if info.get(key) is not None
+                ),
+                None,
+            )
+            try:
+                expense_ratio = float(expense_ratio) if expense_ratio is not None else None
+                if expense_ratio is not None and (not np.isfinite(expense_ratio) or expense_ratio < 0):
+                    expense_ratio = None
+            except (TypeError, ValueError):
+                expense_ratio = None
+            row["expense_ratio"] = expense_ratio
+            row["expense_ratio_metadata_source"] = (
+                "YAHOO_FINANCE" if expense_ratio is not None else "UNAVAILABLE"
+            )
             dividend_history = None
             dividend_history_status = "FETCH_FAILED"
             dividend_history_error = None
