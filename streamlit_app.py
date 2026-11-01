@@ -793,7 +793,7 @@ def main():
                         US_UNIVERSE_PATH,
                         {
                             "symbol": manual_symbol,
-                            "name": manual_name,
+                            "name": manual_name or candidate_metadata.get("name") or manual_symbol,
                             "type": manual_type,
                             "primary_exchange": manual_exchange,
                             "category": candidate_metadata.get("category"),
@@ -1997,7 +1997,7 @@ def main():
                 columns = [c for c in ["symbol", "type", "primary_exchange", "india_inx_exchange_supported", "india_inx_symbol_verified", "eligibility_status", "category", "name", "price_usd", "change_1m_pct", "change_6m_pct", "volatility_annual_pct", "market_cap_usd", "expense_ratio", "dividend_yield_pct", "research_score", "signal", "data_status"] if c in frame.columns]
                 frame = frame[columns].sort_values("research_score", ascending=False, na_position="last")
                 st.dataframe(frame, use_container_width=True, hide_index=True)
-                st.info("Verify a symbol in your Kite Global Stocks account before adding it to data/zerodha_us_universe.json with zerodha_eligible=true. Candidate records remain unverified.")
+                st.info("Use the sidebar “Manually verify a US symbol in Zerodha” control after confirming the exact ticker in Kite > International / Global Stocks. The verification is stored locally and takes effect on the next analysis run.")
             for article in us.get("news", [])[:20]:
                 st.markdown(f"**{article.get('symbol', '')}: {article.get('title', 'Untitled')}**")
                 st.caption(article.get("publisher", "Yahoo Finance"))
