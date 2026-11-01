@@ -30,6 +30,20 @@ def load_candidate_metadata(path: str | Path, symbol: str) -> dict[str, Any]:
     return {}
 
 
+def load_verified_us_instruments(path: str | Path) -> list[dict[str, Any]]:
+    """Load the persisted manually verified US instrument rows."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    if not isinstance(payload, dict) or not isinstance(payload.get("instruments"), list):
+        return []
+    return [
+        dict(row) for row in payload["instruments"]
+        if isinstance(row, dict) and row.get("zerodha_eligible") is True
+    ]
+
+
 def save_verified_us_instrument(
     path: str | Path,
     instrument: dict[str, Any],
