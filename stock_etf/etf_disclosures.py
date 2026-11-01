@@ -362,6 +362,7 @@ def refresh_etf_disclosure_cache(
         "unsupported": 0,
         "stale": 0,
         "classification_only": 0,
+        "fresh_cache_skipped": 0,
         "results": [],
     }
     held_etfs = [symbol for symbol, item in holdings.items()
@@ -378,6 +379,7 @@ def refresh_etf_disclosure_cache(
         cache_file = cache_root / f"{symbol}.json"
         if not force and cache_file.exists() and _cache_is_fresh(cache_file, max_age_days):
             diagnostics["unchanged"] += 1
+            diagnostics["fresh_cache_skipped"] += 1
             diagnostics["results"].append({"symbol": symbol, "status": "fresh_cache"})
             continue
 
@@ -519,8 +521,8 @@ def refresh_etf_disclosure_cache(
         else "partial"
     )
     logger.info(
-        "ETF disclosure ingestion: attempted=%d updated=%d unchanged=%d stale=%d classification_only=%d failed=%d unsupported=%d",
+        "ETF disclosure ingestion: attempted=%d updated=%d unchanged=%d fresh_cache_skipped=%d stale=%d classification_only=%d failed=%d unsupported=%d",
         diagnostics["attempted"], diagnostics["updated"], diagnostics["unchanged"],
-        diagnostics["stale"], diagnostics["classification_only"], diagnostics["failed"], diagnostics["unsupported"],
+        diagnostics["fresh_cache_skipped"], diagnostics["stale"], diagnostics["classification_only"], diagnostics["failed"], diagnostics["unsupported"],
     )
     return diagnostics
