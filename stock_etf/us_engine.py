@@ -327,6 +327,9 @@ def run_us_research(
             row["market_cap_currency"] = currency
             row["market_cap"] = market_cap
             row["market_cap_usd"] = market_cap if currency == "USD" else None
+            row["market_cap_metadata_source"] = (
+                "YAHOO_FINANCE" if market_cap is not None else "UNAVAILABLE"
+            )
             row["sector"] = sector
             row["sector_metadata_source"] = (
                 "YAHOO_FINANCE" if yahoo_sector
