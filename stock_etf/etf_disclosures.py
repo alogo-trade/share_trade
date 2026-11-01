@@ -55,7 +55,7 @@ SOURCE_PAGES = {
     "mirae": "https://www.miraeassetmf.co.in/downloads/statutory-disclosure/other-disclosure",
     "motilal": "https://www.motilaloswalmf.com/mutual-funds/motilal-oswal-nasdaq-100-etf",
     "sbi": "https://www.sbimf.com/portfolios",
-    "icici": "https://www.icicipruamc.com/media-center/downloads?currentTabFilter=otherSchemeDisclosures&&subCatTabFilter=MonthlyPortfolioDisclosures",
+    "icici": "https://www.icicipruamc.com/media-center/downloads?currentTabFilter=otherSchemeDisclosures&subCatTabFilter=MonthlyPortfolioDisclosures",
 }
 
 COMMODITY_ETFS = {
