@@ -50,7 +50,7 @@ def _parse_directory_file(content: str, *, nasdaq_listed: bool) -> dict[str, dic
         symbol = str(raw_symbol or "").strip().upper()
         if not symbol or symbol.startswith("File Creation Time"):
             continue
-        if not re.fullmatch(r"[A-Z0-9][A-Z0-9. \-]{0,14}", symbol):
+        if not re.fullmatch(r"[A-Z0-9][A-Z0-9.\-]{0,14}", symbol):
             continue
         test_issue = str(raw.get("Test Issue") or "N").strip().upper()
         if test_issue == "Y":
