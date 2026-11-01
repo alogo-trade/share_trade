@@ -176,12 +176,12 @@ def run(
         settings.cache_dir,
     )
     etf_constituents = load_cached_etf_constituents(holdings, settings.cache_dir)
-    portfolio_info["etf_ingestion"] = etf_ingestion
     portfolio_info = portfolio_summary(
         holdings,
         universe=portfolio_metadata,
         etf_constituents=etf_constituents,
     )
+    portfolio_info["etf_ingestion"] = etf_ingestion
 
     logger.info(
         "Portfolio loaded: %d holdings, current value ₹%.2f",
