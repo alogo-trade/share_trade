@@ -549,7 +549,10 @@ def run_us_research(
             ),
         },
         "discovery": {
-            **(discovery or {}),
+            **{
+                key: value for key, value in (discovery or {}).items()
+                if key != "instruments"
+            },
             "error": discovery_error,
             "dynamic_enabled": bool(dynamic_discovery),
             "discovered_candidate_count": len(candidates),
