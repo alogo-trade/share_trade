@@ -9,6 +9,7 @@ import numpy as np
 import yfinance as yf
 
 from .market import _yield_metadata as _shared_yield_metadata
+from .news import fetch_us_market_news
 
 logger = logging.getLogger("stock_etf.us")
 
@@ -146,6 +147,22 @@ def _dividend_yield_coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "history_circuit_breaker_skip_count": history_counts.get("CIRCUIT_BREAKER_OPEN", 0),
         "history_failure_samples": failed_symbols[:20],
     }
+
+
+
+def _dedupe_us_news(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate ticker and broad US news by canonical URL/title."""
+    seen = set()
+    output = []
+    for item in items:
+        link = str(item.get("link") or "").split("?")[0].rstrip("/").lower()
+        title = " ".join(str(item.get("title") or "").lower().split())
+        key = link or title
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        output.append(item)
+    return output
 
 
 def run_us_research(
@@ -318,10 +335,17 @@ def run_us_research(
             row["error"] = str(exc)
         results.append(row)
 
+    # Ticker-specific news can be empty even when broad market events are relevant.
+    broad_news, news_failures = fetch_us_market_news(limit=40)
+    news = _dedupe_us_news(news + broad_news)
     verified_count = sum(
         x["eligibility_status"] == "ZERODHA_VERIFIED" for x in results
     )
     failed_count = sum(bool(x.get("error")) for x in results)
+    expense_ratio_count = sum(
+        x.get("expense_ratio") is not None for x in results if x.get("type") == "ETF"
+    )
+    etf_count = sum(x.get("type") == "ETF" for x in results)
     return {
         "status": "partial" if verified_count == 0 or failed_count else "ok",
         "scope": "RESEARCH_ONLY" if verified_count == 0 else "VERIFIED_AND_RESEARCH",
@@ -347,6 +371,17 @@ def run_us_research(
         },
         "price_source": "Yahoo Finance; not Zerodha quotes",
         "dividend_yield_coverage": _dividend_yield_coverage(results),
-        "instruments": results,
+        "metadata_coverage": {
+            "instrument_count": len(results),
+            "sector_count": sum(bool(x.get("sector")) for x in results),
+            "industry_count": sum(bool(x.get("industry")) for x in results),
+            "market_cap_count": sum(x.get("market_cap") is not None for x in results),
+            "etf_count": etf_count,
+            "etf_expense_ratio_count": expense_ratio_count,
+            "etf_expense_ratio_missing_count": max(0, etf_count - expense_ratio_count),
+        },
         "news": news,
+        "news_count": len(news),
+        "news_errors": news_failures[-20:],
+        "instruments": results,
     }
