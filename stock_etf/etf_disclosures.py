@@ -360,7 +360,7 @@ def refresh_etf_disclosure_cache(
                     updated = True
                     break
                 frames = _read_workbook(file_bytes, url)
-                link_confirms_scheme = any(_normalise(alias) in _normalise(f"{label} {url}") for alias in aliases)
+                link_confirms_scheme = source == "motilal" or any(_normalise(alias) in _normalise(f"{label} {url}") for alias in aliases)
                 rows, parse_error = _extract_rows(frames, aliases, scheme_context_verified=link_confirms_scheme)
                 if parse_error:
                     last_error = parse_error
