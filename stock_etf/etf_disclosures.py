@@ -117,7 +117,8 @@ def _parse_as_of(value: str) -> str | None:
                 day, month, year = match.groups()
                 return datetime.strptime(f"{day} {month} {year}", "%d %B %Y").date().isoformat()
             month, year = match.groups()
-            return datetime.strptime(f"1 {month} {year}", "%d %B %Y").date().isoformat()
+            month_date = datetime.strptime(f"1 {month} {year}", "%d %B %Y").date()
+            return date(month_date.year, month_date.month, calendar.monthrange(month_date.year, month_date.month)[1]).isoformat()
         except ValueError:
             try:
                 if len(match.groups()) == 3:
@@ -131,7 +132,13 @@ def _parse_as_of(value: str) -> str | None:
     return None
 
 
-def _download_candidates(session: requests.Session, source: str, aliases: tuple[str, ...], page_cache: dict | None = None):
+def _download_candidates(
+    session: requests.Session,
+    source: str,
+    aliases: tuple[str, ...],
+    page_cache: dict | None = None,
+    max_age_days: int = 40,
+):
     page_url = SOURCE_PAGES.get(source)
     if not page_url:
         return [], "official_source_not_configured"
@@ -180,10 +187,30 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
         generic_monthly = "monthly portfolio" in text or "month end portfolio" in text
         if alias_match or (source in {"nippon", "mirae"} and generic_monthly) or (source == "motilal" and page_confirms_scheme):
             candidates.append((absolute, label or absolute))
-    # Prefer links whose label directly identifies the scheme. Avoid selecting
-    # several stale months or unrelated AMC documents.
-    candidates.sort(key=lambda item: _parse_as_of(f"{item[1]} {item[0]}") or "", reverse=True)
-    return candidates[:3], None
+    # Reject dated archive files outside the configured freshness window.
+    # An undated generic archive cannot establish a reporting period.
+    today = date.today()
+    fresh_candidates = []
+    stale_candidates = []
+    for url, label in candidates:
+        as_of = _parse_as_of(f"{label} {url}")
+        if as_of:
+            age_days = (today - date.fromisoformat(as_of)).days
+            if 0 <= age_days <= max_age_days:
+                fresh_candidates.append((url, label))
+            else:
+                stale_candidates.append((url, label))
+        elif any(alias and alias in _normalise(f"{label} {url}") for alias in aliases_norm):
+            fresh_candidates.append((url, label))
+    fresh_candidates.sort(
+        key=lambda item: _parse_as_of(f"{item[1]} {item[0]}") or "",
+        reverse=True,
+    )
+    if fresh_candidates:
+        return fresh_candidates[:3], None
+    if stale_candidates:
+        return [], "only_stale_official_disclosures_available"
+    return [], "no_dated_scheme_specific_disclosure_candidate"
 
 
 def _read_workbook(payload: bytes, url: str) -> list[pd.DataFrame]:
@@ -305,13 +332,11 @@ def _cache_is_fresh(path: Path, max_age_days: int) -> bool:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         if payload.get("source_status") == "SCHEME_IDENTITY_ONLY":
-            return True
+            fetched_at = datetime.fromisoformat(str(payload.get("fetched_at", ""))).date()
+            return 0 <= (date.today() - fetched_at).days < 1
         as_of = date.fromisoformat(str(payload.get("as_of", "")))
         age_days = (date.today() - as_of).days
-        if age_days <= max_age_days:
-            return True
-        fetched_at = datetime.fromisoformat(str(payload.get("fetched_at", ""))).date()
-        return (date.today() - fetched_at).days < 1
+        return 0 <= age_days <= max_age_days
     except (OSError, ValueError, TypeError):
         return False
 
@@ -366,9 +391,17 @@ def refresh_etf_disclosure_cache(
         # Precious-metal ETFs have no equity-sector look-through. Persist their
         # verified asset class, but do not invent security constituents.
         diagnostics["attempted"] += 1
-        candidates, error = _download_candidates(session, source, aliases, page_cache=page_cache)
+        candidates, error = _download_candidates(
+            session, source, aliases, page_cache=page_cache, max_age_days=max_age_days
+        )
         if error or not candidates:
             reason = error or "no_matching_official_download_link"
+            if reason == "only_stale_official_disclosures_available":
+                diagnostics["stale"] += 1
+                diagnostics["results"].append({
+                    "symbol": symbol, "status": "stale_source_rejected", "reason": reason
+                })
+                continue
             if symbol in COMMODITY_ETFS and not cache_file.exists():
                 _write_cache(cache_file, {
                     "source": "OFFICIAL_AMC_SCHEME_IDENTITY",
@@ -417,6 +450,10 @@ def refresh_etf_disclosure_cache(
                         last_error = "commodity_disclosure_as_of_date_not_found"
                         continue
                     age_days = (date.today() - date.fromisoformat(as_of)).days
+                    if age_days < 0 or age_days > max_age_days:
+                        last_error = "disclosure_outside_freshness_window"
+                        diagnostics["stale"] += 1
+                        continue
                     payload = {
                         "source": url,
                         "as_of": as_of,
@@ -448,6 +485,10 @@ def refresh_etf_disclosure_cache(
                     last_error = "disclosure_as_of_date_not_found"
                     continue
                 age_days = (date.today() - date.fromisoformat(as_of)).days
+                if age_days < 0 or age_days > max_age_days:
+                    last_error = "disclosure_outside_freshness_window"
+                    diagnostics["stale"] += 1
+                    continue
                 payload = {
                     "source": url,
                     "as_of": as_of,
