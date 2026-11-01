@@ -5,6 +5,7 @@ import logging
 from io import BytesIO
 import re
 import tempfile
+import zipfile
 from datetime import date, datetime
 import calendar
 from html.parser import HTMLParser
@@ -182,7 +183,20 @@ def _read_workbook(payload: bytes, url: str) -> list[pd.DataFrame]:
     elif suffix in {".xlsx", ".xlsm"}:
         sheets = pd.read_excel(BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="openpyxl")
     elif suffix == ".zip":
-        raise ValueError("zip_disclosure_not_supported_yet")
+        frames = []
+        total_uncompressed = 0
+        with zipfile.ZipFile(BytesIO(payload)) as archive:
+            for member in archive.infolist():
+                member_suffix = Path(member.filename).suffix.lower()
+                if member.is_dir() or member_suffix not in {".xls", ".xlsx", ".xlsm", ".csv"}:
+                    continue
+                total_uncompressed += member.file_size
+                if member.file_size > MAX_DOWNLOAD_BYTES or total_uncompressed > MAX_DOWNLOAD_BYTES:
+                    raise ValueError("zip_disclosure_exceeds_uncompressed_limit")
+                frames.extend(_read_workbook(archive.read(member), member.filename))
+        if not frames:
+            raise ValueError("zip_contains_no_supported_spreadsheets")
+        return frames
     else:
         raise ValueError(f"unsupported_disclosure_format:{suffix or 'unknown'}")
     return list(sheets.values())
