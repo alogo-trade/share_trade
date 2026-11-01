@@ -15,6 +15,7 @@ from .portfolio import (
     apply_portfolio_context,
     build_portfolio_instrument_context,
     load_holdings,
+    load_cached_portfolio_metadata,
     portfolio_summary,
 )
 from .profile_store import load_profile
@@ -143,8 +144,15 @@ def run(
         settings.holdings_path
     )
 
+    # Portfolio classification is sourced independently of the active research
+    # market. Reuse cached Yahoo fundamentals only; never start NSE discovery here.
+    portfolio_metadata = load_cached_portfolio_metadata(
+        holdings,
+        settings.cache_dir,
+    )
     portfolio_info = portfolio_summary(
-        holdings
+        holdings,
+        universe=portfolio_metadata,
     )
 
     logger.info(
@@ -222,7 +230,7 @@ def run(
     discovered = len(universe)
     # Preserve the complete exchange universe for portfolio classification.
     # Market screening must never determine which existing holdings are visible.
-    portfolio_universe = list(universe)
+    portfolio_universe = list(universe) + portfolio_metadata
 
     logger.info("NSE universe stage completed: discovered=%d instruments.", discovered)
 
