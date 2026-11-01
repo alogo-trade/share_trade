@@ -87,7 +87,7 @@ def _normalise(value) -> str:
 
 
 def _parse_as_of(value: str) -> str | None:
-    text = re.sub(r"(\\d)(st|nd|rd|th)\\b", r"\\1", str(value or ""), flags=re.I)
+    text = re.sub(r"(\d)(st|nd|rd|th)\b", r"\1", str(value or ""), flags=re.I)
     for pattern in DATE_PATTERNS:
         match = pattern.search(text)
         if not match:
