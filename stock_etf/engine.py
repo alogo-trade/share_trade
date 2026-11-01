@@ -135,9 +135,10 @@ def run(
         refresh=True,
     )
 
-    discovered = len(
-        universe
-    )
+    discovered = len(universe)
+    # Preserve the complete exchange universe for portfolio classification.
+    # Market screening must never determine which existing holdings are visible.
+    portfolio_universe = list(universe)
 
     logger.info("NSE universe stage completed: discovered=%d instruments.", discovered)
 
@@ -230,9 +231,14 @@ def run(
     # addition to this particular portfolio".
     # ------------------------------------------------------------------
 
+    # Rebuild portfolio diagnostics with full-universe metadata and the screened
+    # records. This keeps every broker holding in the denominator and coverage.
+    portfolio_info = portfolio_summary(holdings, records, portfolio_universe)
+
     apply_portfolio_context(
         records,
         holdings,
+        portfolio_universe,
     )
 
     # Deterministic rules are always the hard safety gate. Jev can only
