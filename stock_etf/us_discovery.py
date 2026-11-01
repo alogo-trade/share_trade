@@ -100,15 +100,24 @@ def load_us_listing_directory(timeout: int = 20) -> dict[str, dict[str, Any]]:
 
 def _screen_query(instrument_type: str):
     """Build conservative liquidity and size filters for the two instrument classes."""
+    query_class_name = "EquityQuery" if instrument_type == "STOCK" else "ETFQuery"
+    query = getattr(yf, query_class_name, None)
+    if query is None:
+        version = getattr(yf, "__version__", "unknown")
+        module_path = getattr(yf, "__file__", "unknown")
+        raise RuntimeError(
+            f"Installed yfinance {version} at {module_path} does not expose "
+            f"{query_class_name}. The active environment needs yfinance>=1.7.0,<2. "
+            "Upgrade it with: python -m pip install --upgrade 'yfinance>=1.7.0,<2'."
+        )
     if instrument_type == "STOCK":
-        query = yf.EquityQuery
+        query = query
         return query("and", [
             query("eq", ["region", "us"]),
             query("gte", ["intradaymarketcap", float(os.getenv("US_MIN_MARKET_CAP_USD", "2000000000"))]),
             query("gte", ["avgdailyvol3m", float(os.getenv("US_MIN_AVG_DAILY_VOLUME", "500000"))]),
             query("gte", ["intradayprice", float(os.getenv("US_MIN_SHARE_PRICE_USD", "5"))]),
         ])
-    query = yf.ETFQuery
     return query("and", [
         query("eq", ["region", "us"]),
         query("gte", ["fundnetassets", float(os.getenv("US_MIN_ETF_ASSETS_USD", "500000000"))]),
