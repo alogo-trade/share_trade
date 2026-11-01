@@ -101,6 +101,7 @@ def test_future_dated_disclosure_is_not_fresh(tmp_path):
 
 def test_month_only_disclosure_date_resolves_to_month_end():
     assert _parse_as_of("Monthly portfolio September 2026") == "2026-09-30"
+    assert _parse_as_of("Monthly portfolio Sept 2026") == "2026-09-30"
 
 
 def test_candidate_discovery_rejects_old_monthly_archive(tmp_path):
