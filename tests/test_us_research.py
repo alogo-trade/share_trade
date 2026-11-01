@@ -275,3 +275,111 @@ def test_us_research_disabled_is_respected():
 
     result = _run_us_research_for_scope(Settings(us_research_enabled=False), "HYBRID")
     assert result["status"] == "disabled"
+
+
+
+def test_us_research_ranking_keeps_unverified_candidates_out_of_actionable():
+    from stock_etf.us_engine import _build_us_ranking
+
+    result = _build_us_ranking([
+        {
+            "symbol": "AAPL",
+            "research_score": 70.0,
+            "signal": "POSITIVE",
+            "data_status": "latest_available",
+            "eligibility_status": "CANDIDATE_UNVERIFIED",
+        },
+        {
+            "symbol": "MSFT",
+            "research_score": 65.0,
+            "signal": "POSITIVE",
+            "data_status": "latest_available",
+            "eligibility_status": "ZERODHA_VERIFIED",
+        },
+        {
+            "symbol": "BAD",
+            "research_score": None,
+            "signal": "INSUFFICIENT_DATA",
+            "data_status": "unavailable",
+            "eligibility_status": "CANDIDATE_UNVERIFIED",
+        },
+    ])
+
+    assert [row["symbol"] for row in result["ranked"]] == ["AAPL", "MSFT"]
+    assert [row["symbol"] for row in result["shortlist"]] == ["AAPL", "MSFT"]
+    assert [row["symbol"] for row in result["actionable"]] == ["MSFT"]
+    assert result["ranked"][0]["research_only"] is True
+    assert [row["symbol"] for row in result["unevaluated"]] == ["BAD"]
+
+
+def test_us_metadata_provenance_does_not_claim_provider_reporting_date():
+    import pandas as pd
+    import stock_etf.us_engine as us_engine
+
+    class FakeTicker:
+        history = None
+
+        def __init__(self, symbol):
+            self.symbol = symbol
+
+        def history(self, **kwargs):
+            return pd.DataFrame(
+                {"Close": [100.0, 101.0]},
+                index=pd.to_datetime(["2026-10-29", "2026-10-30"]),
+            )
+
+        @property
+        def info(self):
+            return {
+                "currency": "USD",
+                "sector": "Technology",
+                "industry": "Consumer Electronics",
+                "marketCap": 1000000,
+            }
+
+        @property
+        def dividends(self):
+            return pd.Series(dtype=float)
+
+        @property
+        def news(self):
+            return []
+
+    class FakeFundsData:
+        top_holdings = pd.DataFrame(
+            {"Holding Percent": [0.5]}, index=["Apple Inc"]
+        )
+        sector_weightings = {"technology": 0.5}
+        asset_classes = {"stockPosition": 1.0}
+
+    class FakeETF(FakeTicker):
+        @property
+        def funds_data(self):
+            return FakeFundsData()
+
+    monkeypatch = __import__("pytest").MonkeyPatch()
+    monkeypatch.setattr(us_engine.yf, "Ticker", lambda symbol: FakeETF(symbol))
+    try:
+        from pathlib import Path
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            candidate_path = Path(directory) / "candidates.json"
+            candidate_path.write_text(json.dumps({"instruments": [
+                {"symbol": "TEST", "type": "ETF", "category": "Broad market", "zerodha_eligible": False}
+            ]}))
+            result = us_engine.run_us_research(
+                universe_path=str(Path(directory) / "verified.json"),
+                candidate_path=str(candidate_path),
+                limit=1,
+            )
+        row = result["instruments"][0]
+        assert row["metadata_observed_at_utc"]
+        assert row["metadata_reporting_date"] is None
+        assert row["metadata_freshness"] == "REPORTING_DATE_UNAVAILABLE"
+        assert row["metadata_provenance"]["sector"]["source"] == "YAHOO_FINANCE"
+        assert row["metadata_provenance"]["top_holdings"]["reporting_date"] is None
+        assert result["metadata_coverage"]["provenance_observed_count"] == 1
+    finally:
+        monkeypatch.undo()
