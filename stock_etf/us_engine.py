@@ -339,7 +339,7 @@ def run_us_research(
             row["industry"] = info.get("industry") or item.get("industry")
             row["industry_metadata_source"] = (
                 "YAHOO_FINANCE" if info.get("industry")
-                else "CURATED_CATEGORY" if item.get("category")
+                else "CURATED_UNIVERSE" if item.get("industry")
                 else "UNAVAILABLE"
             )
             expense_ratio = next(
