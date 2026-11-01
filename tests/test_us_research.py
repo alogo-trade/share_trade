@@ -634,3 +634,35 @@ def test_dynamic_discovery_failure_does_not_drop_manually_verified_symbols(tmp_p
     assert "only manually verified symbols" in result["status_reason"]
     assert result["discovery"]["dynamic_enabled"] is True
     assert "directory unavailable" in result["discovery"]["error"]
+
+
+
+def test_missing_etf_query_reports_installed_yfinance_version_and_path(monkeypatch):
+    from types import SimpleNamespace
+    import pytest
+    import stock_etf.us_discovery as discovery
+
+    monkeypatch.setattr(
+        discovery,
+        "yf",
+        SimpleNamespace(__version__="1.3.0", __file__="/venv/lib/yfinance/__init__.py"),
+    )
+    with pytest.raises(RuntimeError, match="yfinance 1.3.0") as exc:
+        discovery._screen_query("ETF")
+    assert "ETFQuery" in str(exc.value)
+    assert "yfinance>=1.7.0,<2" in str(exc.value)
+
+
+def test_stock_query_uses_equity_query_class(monkeypatch):
+    from types import SimpleNamespace
+    import stock_etf.us_discovery as discovery
+
+    calls = []
+    class FakeQuery:
+        def __init__(self, operator, operands):
+            calls.append((operator, operands))
+
+    monkeypatch.setattr(discovery, "yf", SimpleNamespace(EquityQuery=FakeQuery))
+    query = discovery._screen_query("STOCK")
+    assert isinstance(query, FakeQuery)
+    assert calls[0][0] == "and"
