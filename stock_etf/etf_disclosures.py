@@ -304,6 +304,8 @@ def _write_cache(cache_file: Path, payload: dict) -> None:
 def _cache_is_fresh(path: Path, max_age_days: int) -> bool:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("source_status") == "SCHEME_IDENTITY_ONLY":
+            return True
         as_of = date.fromisoformat(str(payload.get("as_of", "")))
         age_days = (date.today() - as_of).days
         if age_days <= max_age_days:
@@ -334,6 +336,7 @@ def refresh_etf_disclosure_cache(
         "failed": 0,
         "unsupported": 0,
         "stale": 0,
+        "classification_only": 0,
         "results": [],
     }
     held_etfs = [symbol for symbol, item in holdings.items()
@@ -364,13 +367,31 @@ def refresh_etf_disclosure_cache(
         # verified asset class, but do not invent security constituents.
         diagnostics["attempted"] += 1
         candidates, error = _download_candidates(session, source, aliases, page_cache=page_cache)
-        if error:
-            diagnostics["failed"] += 1
-            diagnostics["results"].append({"symbol": symbol, "status": "failed", "reason": error})
-            continue
-        if not candidates:
-            diagnostics["unsupported"] += 1
-            diagnostics["results"].append({"symbol": symbol, "status": "unsupported", "reason": "no_matching_official_download_link"})
+        if error or not candidates:
+            reason = error or "no_matching_official_download_link"
+            if symbol in COMMODITY_ETFS and not cache_file.exists():
+                _write_cache(cache_file, {
+                    "source": "OFFICIAL_AMC_SCHEME_IDENTITY",
+                    "as_of": None,
+                    "fetched_at": datetime.now().isoformat(),
+                    "underlying_asset_class": "COMMODITY",
+                    "holdings": [],
+                    "source_status": "SCHEME_IDENTITY_ONLY",
+                })
+                diagnostics["classification_only"] += 1
+                diagnostics["results"].append({
+                    "symbol": symbol,
+                    "status": "classification_only",
+                    "reason": reason,
+                    "source": "OFFICIAL_AMC_SCHEME_IDENTITY",
+                })
+                continue
+            if error:
+                diagnostics["failed"] += 1
+                diagnostics["results"].append({"symbol": symbol, "status": "failed", "reason": reason})
+            else:
+                diagnostics["unsupported"] += 1
+                diagnostics["results"].append({"symbol": symbol, "status": "unsupported", "reason": reason})
             continue
 
         updated = False
@@ -453,12 +474,12 @@ def refresh_etf_disclosure_cache(
             diagnostics["results"].append({"symbol": symbol, "status": "failed", "reason": last_error})
 
     diagnostics["status"] = (
-        "complete" if diagnostics["failed"] == 0 and diagnostics["unsupported"] == 0 and diagnostics["stale"] == 0
+        "complete" if diagnostics["failed"] == 0 and diagnostics["unsupported"] == 0 and diagnostics["stale"] == 0 and diagnostics["classification_only"] == 0
         else "partial"
     )
     logger.info(
-        "ETF disclosure ingestion: attempted=%d updated=%d unchanged=%d stale=%d failed=%d unsupported=%d",
+        "ETF disclosure ingestion: attempted=%d updated=%d unchanged=%d stale=%d classification_only=%d failed=%d unsupported=%d",
         diagnostics["attempted"], diagnostics["updated"], diagnostics["unchanged"],
-        diagnostics["stale"], diagnostics["failed"], diagnostics["unsupported"],
+        diagnostics["stale"], diagnostics["classification_only"], diagnostics["failed"], diagnostics["unsupported"],
     )
     return diagnostics
