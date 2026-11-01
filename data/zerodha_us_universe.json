@@ -1,7 +1,21 @@
 {
   "source": "User manually verified in Zerodha Kite Global Stocks",
-  "verified_on": "2026-11-01T07:14:31.019305+00:00",
+  "verified_on": "2026-11-01T07:22:49.884838+00:00",
   "instruments": [
+    {
+      "symbol": "BRK-B",
+      "name": "Berkshire Hathaway",
+      "type": "STOCK",
+      "primary_exchange": "NYSE",
+      "zerodha_eligible": true,
+      "eligibility_status": "ZERODHA_VERIFIED",
+      "verified_on": "2026-11-01T07:22:49.884838+00:00",
+      "verification_method": "USER_CONFIRMED_IN_KITE_GLOBAL_STOCKS",
+      "eligibility_notes": "User manually confirmed that this exact symbol is searchable in their Zerodha Kite Global Stocks / International segment.",
+      "category": "Diversified financials",
+      "currency": "USD",
+      "india_inx_exchange_supported": true
+    },
     {
       "symbol": "CVX",
       "name": "Chevron",
