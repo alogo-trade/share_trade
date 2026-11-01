@@ -111,18 +111,24 @@ def _parse_as_of(value: str) -> str | None:
     return None
 
 
-def _download_candidates(session: requests.Session, source: str, aliases: tuple[str, ...]):
+def _download_candidates(session: requests.Session, source: str, aliases: tuple[str, ...], page_cache: dict | None = None):
     page_url = SOURCE_PAGES.get(source)
     if not page_url:
         return [], "official_source_not_configured"
-    try:
-        response = session.get(page_url, timeout=TIMEOUT_SECONDS)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        return [], f"source_page_fetch_failed:{type(exc).__name__}"
+    if page_cache is not None and page_url in page_cache:
+        page_text = page_cache[page_url]
+    else:
+        try:
+            response = session.get(page_url, timeout=TIMEOUT_SECONDS)
+            response.raise_for_status()
+            page_text = response.text
+            if page_cache is not None:
+                page_cache[page_url] = page_text
+        except requests.RequestException as exc:
+            return [], f"source_page_fetch_failed:{type(exc).__name__}"
 
     parser = _AnchorParser()
-    parser.feed(response.text)
+    parser.feed(page_text)
     aliases_norm = [_normalise(alias) for alias in aliases]
     candidates = []
     link_items = list(parser.links)
@@ -130,11 +136,11 @@ def _download_candidates(session: requests.Session, source: str, aliases: tuple[
     # than an anchor element (Motilal's scheme pages use portfolioUrl).
     embedded_paths = re.findall(
         r"""(?:https?://[^\s"'<>]+|/[^\s"'<>]+)\.(?:xlsx?|csv)(?:\?[^\s"'<>]*)?""",
-        response.text,
+        page_text,
         flags=re.I,
     )
     link_items.extend((path, path) for path in embedded_paths)
-    page_text = _normalise(response.text)
+    page_text = _normalise(page_text)
     page_confirms_scheme = any(alias and alias in page_text for alias in aliases_norm)
     for label, href in link_items:
         absolute = urljoin(page_url, href)
@@ -294,6 +300,8 @@ def refresh_etf_disclosure_cache(
 
     diagnostics["status"] = "partial"
     session = requests.Session()
+    page_cache = {}
+    download_cache = {}
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "*/*"})
     for symbol in sorted(held_etfs):
         cache_file = cache_root / f"{symbol}.json"
@@ -312,7 +320,7 @@ def refresh_etf_disclosure_cache(
         # Precious-metal ETFs have no equity-sector look-through. Persist their
         # verified asset class, but do not invent security constituents.
         diagnostics["attempted"] += 1
-        candidates, error = _download_candidates(session, source, aliases)
+        candidates, error = _download_candidates(session, source, aliases, page_cache=page_cache)
         if error:
             diagnostics["failed"] += 1
             diagnostics["results"].append({"symbol": symbol, "status": "failed", "reason": error})
@@ -326,10 +334,15 @@ def refresh_etf_disclosure_cache(
         last_error = "no_valid_candidate"
         for url, label in candidates:
             try:
-                response = session.get(url, timeout=TIMEOUT_SECONDS)
-                response.raise_for_status()
-                if len(response.content) > MAX_DOWNLOAD_BYTES:
-                    raise ValueError("disclosure_exceeds_download_limit")
+                if url in download_cache:
+                    file_bytes = download_cache[url]
+                else:
+                    response = session.get(url, timeout=TIMEOUT_SECONDS)
+                    response.raise_for_status()
+                    file_bytes = response.content
+                    if len(file_bytes) > MAX_DOWNLOAD_BYTES:
+                        raise ValueError("disclosure_exceeds_download_limit")
+                    download_cache[url] = file_bytes
                 as_of = _parse_as_of(f"{label} {url}")
                 if symbol in COMMODITY_ETFS:
                     if not as_of:
@@ -346,7 +359,7 @@ def refresh_etf_disclosure_cache(
                     diagnostics["results"].append({"symbol": symbol, "status": "updated_asset_class_only", "as_of": as_of, "source": url})
                     updated = True
                     break
-                frames = _read_workbook(response.content, url)
+                frames = _read_workbook(file_bytes, url)
                 link_confirms_scheme = any(_normalise(alias) in _normalise(f"{label} {url}") for alias in aliases)
                 rows, parse_error = _extract_rows(frames, aliases, scheme_context_verified=link_confirms_scheme)
                 if parse_error:
