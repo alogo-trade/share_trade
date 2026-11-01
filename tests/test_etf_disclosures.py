@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -45,7 +46,7 @@ def test_fresh_cache_is_not_downloaded_again(tmp_path):
     cache.mkdir()
     (cache / "NIFTYBEES.json").write_text(json.dumps({
         "source": "https://example.invalid/disclosure.xlsx",
-        "as_of": "2099-01-31",
+        "as_of": date.today().isoformat(),
         "underlying_asset_class": "EQUITY",
         "holdings": [],
     }), encoding="utf-8")
@@ -77,8 +78,7 @@ def test_extract_rows_accepts_isin_free_table_only_with_verified_scheme_context(
     assert sum(row["weight_pct"] for row in rows) == 13.5
 
 
-def test_stale_disclosure_is_not_retried_more_than_once_per_day(tmp_path):
-    from datetime import date, timedelta
+def test_stale_disclosure_is_never_fresh_even_when_fetched_today(tmp_path):
     from stock_etf.etf_disclosures import _cache_is_fresh
 
     cache = tmp_path / "old.json"
@@ -87,4 +87,17 @@ def test_stale_disclosure_is_not_retried_more_than_once_per_day(tmp_path):
         "as_of": old_date,
         "fetched_at": date.today().isoformat(),
     }), encoding="utf-8")
-    assert _cache_is_fresh(cache, max_age_days=40)
+    assert not _cache_is_fresh(cache, max_age_days=40)
+
+
+def test_future_dated_disclosure_is_not_fresh(tmp_path):
+    from stock_etf.etf_disclosures import _cache_is_fresh
+
+    cache = tmp_path / "future.json"
+    future_date = (date.today() + timedelta(days=1)).isoformat()
+    cache.write_text(json.dumps({"as_of": future_date}), encoding="utf-8")
+    assert not _cache_is_fresh(cache, max_age_days=40)
+
+
+def test_month_only_disclosure_date_resolves_to_month_end():
+    assert _parse_as_of("Monthly portfolio September 2026") == "2026-09-30"
