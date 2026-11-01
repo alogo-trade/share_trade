@@ -630,5 +630,7 @@ def test_dynamic_discovery_failure_does_not_drop_manually_verified_symbols(tmp_p
         dynamic_discovery=True,
     )
     assert result["instruments"][0]["symbol"] == "AAPL"
+    assert result["status"] == "partial"
+    assert "only manually verified symbols" in result["status_reason"]
     assert result["discovery"]["dynamic_enabled"] is True
     assert "directory unavailable" in result["discovery"]["error"]
