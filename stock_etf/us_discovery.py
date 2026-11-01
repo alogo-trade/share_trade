@@ -44,10 +44,10 @@ def _parse_directory_file(content: str, *, nasdaq_listed: bool) -> dict[str, dic
     reader = csv.DictReader(io.StringIO(content), delimiter="|")
     rows: dict[str, dict[str, Any]] = {}
     for raw in reader:
-        symbol = str(
-            raw.get("Symbol") if nasdaq_listed else
-            (raw.get("CQS Symbol") or raw.get("ACT Symbol")) or ""
-        ).strip().upper()
+        raw_symbol = raw.get("Symbol") if nasdaq_listed else (
+            raw.get("CQS Symbol") or raw.get("ACT Symbol")
+        )
+        symbol = str(raw_symbol or "").strip().upper()
         if not symbol or symbol.startswith("File Creation Time"):
             continue
         if not re.fullmatch(r"[A-Z0-9][A-Z0-9.\\-]{0,14}", symbol):
