@@ -48,11 +48,12 @@ def test_motilal_embedded_portfolio_url_inherits_scheme_page_reporting_date():
 def test_icici_passive_factsheet_page_discovers_pdf_for_scheme():
     from stock_etf.etf_disclosures import SOURCE_PAGES
 
-    reporting_month = date.today().strftime("%B %Y")
+    reporting_month_date = date.today() - timedelta(days=10)
+    reporting_month = reporting_month_date.strftime("%B %Y")
     html = f"""
     <h1>ICICI Prudential Nifty 50 ETF</h1>
     <h2>ICICI Prudential Nifty Next 50 ETF</h2>
-    <a href="/passive/pdf/passive-fund-factsheet-{date.today().strftime('%B').lower()}-{date.today().year}.pdf">
+    <a href="/passive/pdf/passive-fund-factsheet-{reporting_month_date.strftime('%B').lower()}-{reporting_month_date.year}.pdf">
       Passive Fund Factsheet {reporting_month}
     </a>
     """
