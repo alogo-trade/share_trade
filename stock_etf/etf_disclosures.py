@@ -217,6 +217,12 @@ def _download_candidates(
             if source == "motilal" and page_confirms_scheme and motilal_page_as_of:
                 candidate_label = f"{candidate_label} as on {date.fromisoformat(motilal_page_as_of).strftime('%d %b %Y')}"
             candidates.append((absolute, candidate_label))
+    # Anchor and embedded-JSON discovery can expose the same file twice.
+    unique_candidates = {}
+    for candidate_url, candidate_label in candidates:
+        unique_candidates.setdefault(candidate_url, candidate_label)
+    candidates = list(unique_candidates.items())
+
     # Reject dated archive files outside the configured freshness window.
     # An undated generic archive cannot establish a reporting period.
     today = date.today()
