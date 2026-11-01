@@ -41,7 +41,7 @@ NON_COMMON_STOCK = re.compile(
 
 
 def _parse_directory_file(content: str, *, nasdaq_listed: bool) -> dict[str, dict[str, Any]]:
-    reader = csv.DictReader(io.StringIO(content), delimiter="|")
+    reader = csv.DictReader(io.StringIO(content.lstrip("\\ufeff")), delimiter="|")
     rows: dict[str, dict[str, Any]] = {}
     for raw in reader:
         raw_symbol = raw.get("Symbol") if nasdaq_listed else (
@@ -158,9 +158,14 @@ def _build_dynamic_candidates(
     for instrument_type, quotes in (("STOCK", stock_quotes), ("ETF", etf_quotes)):
         for quote in quotes:
             symbol = str(quote.get("symbol") or "").strip().upper()
-            listing = listings.get(symbol)
+            listing = (
+                listings.get(symbol)
+                or listings.get(symbol.replace("-", "."))
+                or listings.get(symbol.replace(".", "-"))
+            )
             if not symbol or not listing or listing["type"] != instrument_type:
                 continue
+            listing = {**listing, "symbol": symbol}
             market_cap = _quote_number(quote, "marketCap", "intradayMarketCap")
             fund_assets = _quote_number(quote, "totalAssets", "fundNetAssets")
             average_volume = _quote_number(
