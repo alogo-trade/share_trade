@@ -110,15 +110,22 @@ def load_cached_portfolio_metadata(
     rows = []
     for symbol, holding in holdings.items():
         exchange = str(holding.get("exchange") or "NSE").strip().upper()
-        suffix = ".BO" if exchange == "BSE" else ".NS"
-        yahoo_symbol = symbol if "." in symbol else f"{symbol}{suffix}"
-        cache_path = fundamentals_dir / f"{yahoo_symbol.replace('/', '_')}.json"
-        if not cache_path.exists():
-            continue
-        try:
-            payload = json.loads(cache_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError) as exc:
-            logger.warning("Could not read cached portfolio metadata for %s: %s", symbol, exc)
+        suffixes = (".BO", ".NS") if exchange == "BSE" else (".NS", ".BO")
+        yahoo_symbols = [symbol] if "." in symbol else [f"{symbol}{suffix}" for suffix in suffixes]
+        payload = None
+        for yahoo_symbol in yahoo_symbols:
+            cache_path = fundamentals_dir / f"{yahoo_symbol.replace('/', '_')}.json"
+            if not cache_path.exists():
+                continue
+            try:
+                candidate = json.loads(cache_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, TypeError) as exc:
+                logger.warning("Could not read cached portfolio metadata for %s (%s): %s", symbol, yahoo_symbol, exc)
+                continue
+            if isinstance(candidate, dict) and (candidate.get("sector") or candidate.get("industry")):
+                payload = candidate
+                break
+        if payload is None:
             continue
         if not isinstance(payload, dict):
             continue
@@ -162,6 +169,7 @@ def portfolio_summary(
     known_universe_symbols = set(metadata)
     sector_values = {}
     sector_classified_value = 0.0
+    sector_classified_holdings_count = 0
     for symbol, holding in holdings.items():
         value = _holding_value(holding)
         asset = _asset_class(symbol, holding, metadata)
@@ -172,6 +180,7 @@ def portfolio_summary(
             if sector and sector.lower() not in {"unknown", "none", "nan"}:
                 sector_values[sector] = sector_values.get(sector, 0.0) + value
                 sector_classified_value += value
+                sector_classified_holdings_count += 1
 
     denominator = current_value or 0.0
     asset_pct = {
@@ -208,6 +217,8 @@ def portfolio_summary(
         "sector_exposure_pct": sector_pct,
         "sector_classified_current_value": round(sector_classified_value, 2),
         "sector_unclassified_current_value": round(max(0.0, current_value - sector_classified_value), 2),
+        "sector_classified_holdings_count": sector_classified_holdings_count,
+        "sector_unclassified_holdings_count": len(holdings) - sector_classified_holdings_count,
     }
 
 
