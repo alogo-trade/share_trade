@@ -309,6 +309,7 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                 matching_rows.append(idx)
         if not matching_rows and scheme_context_verified:
             matching_rows = [0]
+        scheme_context_for_frame = bool(matching_rows) or scheme_context_verified
         for match_idx in matching_rows:
             for row_idx in range(match_idx, min(match_idx + 40, len(values))):
                 headers = values.iloc[row_idx].tolist()
@@ -317,7 +318,7 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                 name_col = _column_index(headers, ("name of instrument", "name of security", "issuer name", "instrument name", "security name", "company issuer", "company"))
                 sector_col = _column_index(headers, ("industry", "sector", "industry classification"))
                 asset_class_col = _column_index(headers, ("asset class", "instrument type", "security type"))
-                if (isin_col is None and not scheme_context_verified) or weight_col is None or name_col is None:
+                if (isin_col is None and not scheme_context_for_frame) or weight_col is None or name_col is None:
                     continue
                 rows = []
                 for _, data in values.iloc[row_idx + 1:].iterrows():
@@ -348,7 +349,7 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                         asset_class = "FIXED_INCOME"
                     elif explicit_class:
                         asset_class = explicit_class if explicit_class in {"EQUITY", "COMMODITY", "FIXED_INCOME", "CASH", "OTHER"} else "UNCLASSIFIED"
-                    elif isin.startswith(("INE", "US", "CA", "GB", "JP", "HK")) or sector or scheme_context_verified:
+                    elif isin.startswith(("INE", "US", "CA", "GB", "JP", "HK")) or sector or scheme_context_for_frame:
                         asset_class = "EQUITY"
                     else:
                         asset_class = "UNCLASSIFIED"
