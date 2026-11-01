@@ -165,6 +165,66 @@ def _dedupe_us_news(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return output
 
 
+def _build_us_ranking(instruments: list[dict[str, Any]], shortlist_limit: int = 10) -> dict[str, Any]:
+    """Rank US research candidates without conflating research quality and broker eligibility."""
+    ranked_rows = []
+    unevaluated = []
+    for raw in instruments:
+        row = dict(raw)
+        score = row.get("research_score")
+        try:
+            score = float(score)
+            if not np.isfinite(score):
+                raise ValueError("non_finite_score")
+        except (TypeError, ValueError):
+            unevaluated.append(row)
+            continue
+        if row.get("data_status") != "latest_available":
+            unevaluated.append(row)
+            continue
+        row["research_rank"] = None
+        row["research_only"] = row.get("eligibility_status") != "ZERODHA_VERIFIED"
+        ranked_rows.append(row)
+
+    ranked_rows.sort(
+        key=lambda row: (
+            float(row.get("research_score", 0)),
+            str(row.get("symbol", "")),
+        ),
+        reverse=True,
+    )
+    for index, row in enumerate(ranked_rows, start=1):
+        row["research_rank"] = index
+
+    shortlist = [
+        dict(row) for row in ranked_rows
+        if row.get("signal") in {"POSITIVE", "NEUTRAL"}
+    ][:max(0, int(shortlist_limit))]
+    actionable = [
+        dict(row) for row in ranked_rows
+        if row.get("eligibility_status") == "ZERODHA_VERIFIED"
+        and row.get("signal") == "POSITIVE"
+    ]
+    return {
+        "status": "complete" if not unevaluated else "partial",
+        "ranked": ranked_rows,
+        "shortlist": shortlist,
+        # Research-only candidates must never be presented as executable trades.
+        "actionable": actionable,
+        "held": [],
+        "rejected": [],
+        "unevaluated": unevaluated,
+        "llm_candidates": [],
+        "counts": {
+            "ranked": len(ranked_rows),
+            "shortlist": len(shortlist),
+            "actionable": len(actionable),
+            "research_only": sum(bool(row.get("research_only")) for row in ranked_rows),
+            "unevaluated": len(unevaluated),
+        },
+    }
+
+
 def run_us_research(
     universe_path: str,
     history_period: str = "3y",
@@ -402,8 +462,10 @@ def run_us_research(
         bool(x.get("asset_classes")) for x in results if x.get("type") == "ETF"
     )
     etf_count = sum(x.get("type") == "ETF" for x in results)
+    ranking = _build_us_ranking(results)
     return {
         "status": "partial" if verified_count == 0 or failed_count else "ok",
+        "ranking": ranking,
         "scope": "RESEARCH_ONLY" if verified_count == 0 else "VERIFIED_AND_RESEARCH",
         "status_reason": (
             "No instruments are explicitly verified as Zerodha-eligible; results are research-only."
