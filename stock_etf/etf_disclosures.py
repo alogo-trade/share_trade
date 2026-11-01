@@ -46,7 +46,7 @@ ALLOWED_SOURCE_HOSTS = {
     "mirae": ("miraeassetmf.co.in",),
     "motilal": ("motilaloswalmf.com",),
     "sbi": ("sbimf.com",),
-    "icici": ("icicipruamc.com",),
+    "icici": ("icicipruamc.com", "digitalfactsheet.icicipruamc.com"),
 }
 
 SOURCE_PAGES = {
@@ -55,7 +55,7 @@ SOURCE_PAGES = {
     "mirae": "https://www.miraeassetmf.co.in/downloads/portfolio",
     "motilal": "https://www.motilaloswalmf.com/mutual-funds/motilal-oswal-nasdaq-100-etf",
     "sbi": "https://www.sbimf.com/portfolios",
-    "icici": "https://www.icicipruamc.com/media-center/downloads?currentTabFilter=otherSchemeDisclosures&subCatTabFilter=MonthlyPortfolioDisclosures",
+    "icici": "https://digitalfactsheet.icicipruamc.com/passive/",
 }
 
 COMMODITY_ETFS = {
@@ -206,7 +206,7 @@ def _download_candidates(
         label_norm = _normalise(label)
         href_norm = _normalise(absolute)
         text = f"{label_norm} {href_norm}"
-        is_file = bool(re.search(r"\.(xlsx?|csv|zip)(?:$|\?)", parsed.path, re.I))
+        is_file = bool(re.search(r"\.(xlsx?|csv|zip|pdf)(?:$|\?)", parsed.path, re.I))
         if not is_file:
             continue
         alias_match = any(alias and (alias in text or alias in label_norm) for alias in aliases_norm)
@@ -250,6 +250,22 @@ def _read_workbook(payload: bytes, url: str) -> list[pd.DataFrame]:
         sheets = pd.read_excel(BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="xlrd")
     elif suffix in {".xlsx", ".xlsm"}:
         sheets = pd.read_excel(BytesIO(payload), sheet_name=None, header=None, dtype=str, engine="openpyxl")
+    elif suffix == ".pdf":
+        import pdfplumber
+
+        frames = []
+        with pdfplumber.open(BytesIO(payload)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                for table in page.extract_tables() or []:
+                    rows = [[str(cell or "").strip() for cell in row] for row in table]
+                    if page_text:
+                        rows.insert(0, [page_text])
+                    if rows:
+                        frames.append(pd.DataFrame(rows))
+        if not frames:
+            raise ValueError("pdf_disclosure_contains_no_extractable_tables")
+        return frames
     elif suffix == ".zip":
         frames = []
         total_uncompressed = 0
@@ -294,7 +310,7 @@ def _extract_rows(frames: list[pd.DataFrame], aliases: tuple[str, ...], scheme_c
                 headers = values.iloc[row_idx].tolist()
                 isin_col = _column_index(headers, ("isin",))
                 weight_col = _column_index(headers, ("percent to net assets", "% to net assets", "net asset percentage", "% nav", "percent to nav", "% to nav"))
-                name_col = _column_index(headers, ("name of instrument", "name of security", "issuer name", "instrument name", "security name"))
+                name_col = _column_index(headers, ("name of instrument", "name of security", "issuer name", "instrument name", "security name", "company issuer", "company"))
                 sector_col = _column_index(headers, ("industry", "sector", "industry classification"))
                 asset_class_col = _column_index(headers, ("asset class", "instrument type", "security type"))
                 if (isin_col is None and not scheme_context_verified) or weight_col is None or name_col is None:
