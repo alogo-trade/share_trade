@@ -522,12 +522,17 @@ def run_us_research(
     )
     etf_count = sum(x.get("type") == "ETF" for x in results)
     ranking = _build_us_ranking(results)
+    discovery_stale = bool(discovery and discovery.get("status") == "stale_cache")
     return {
-        "status": "partial" if verified_count == 0 or failed_count else "ok",
+        "status": "partial" if verified_count == 0 or failed_count or discovery_error or discovery_stale else "ok",
         "ranking": ranking,
         "scope": "RESEARCH_ONLY" if verified_count == 0 else "VERIFIED_AND_RESEARCH",
         "status_reason": (
-            "No instruments are explicitly verified as Zerodha-eligible; results are research-only."
+            f"Dynamic US discovery failed; only manually verified symbols were retained: {discovery_error}"
+            if discovery_error
+            else "Dynamic US discovery is using a stale cache; refresh is required."
+            if discovery_stale
+            else "No instruments are explicitly verified as Zerodha-eligible; results are research-only."
             if verified_count == 0
             else "Some instruments failed market-data retrieval." if failed_count
             else "Verified instruments and research candidates were evaluated."
