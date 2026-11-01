@@ -96,3 +96,58 @@ def test_load_holdings_supports_symbol_keyed_broker_payload(tmp_path):
 
     assert set(loaded) == {"HCLTECH", "GOLDBEES"}
     assert loaded["HCLTECH"]["symbol"] == "HCLTECH"
+
+
+
+def test_portfolio_summary_classifies_zerodha_isins_without_market_universe():
+    from stock_etf.portfolio import portfolio_summary
+
+    holdings = {
+        "HCLTECH": {"isin": "INE860A01027", "current_value": 60.0, "invested_value": 50.0},
+        "GOLDBEES": {"isin": "INF204KB17I5", "current_value": 30.0, "invested_value": 25.0},
+        "SGBDC27VII": {"isin": "IN0020190461", "current_value": 10.0, "invested_value": 8.0},
+    }
+
+    summary = portfolio_summary(
+        holdings,
+        universe=[{"symbol": "HCLTECH", "type": "STOCK", "sector": "Technology"}],
+    )
+
+    assert summary["coverage"]["asset_classified_holdings_count"] == 3
+    assert summary["coverage"]["unclassified_holdings_count"] == 0
+    assert summary["asset_class_exposure_pct"] == {
+        "STOCK": 60.0,
+        "ETF": 30.0,
+        "SOVEREIGN_GOLD_BOND": 10.0,
+    }
+    assert summary["sector_exposure_pct"] == {"Technology": 60.0}
+    assert summary["sector_unclassified_current_value"] == 40.0
+
+
+def test_load_cached_portfolio_metadata_reads_exchange_specific_fundamentals(tmp_path):
+    import json
+    from stock_etf.portfolio import load_cached_portfolio_metadata
+
+    fundamentals = tmp_path / "fundamentals"
+    fundamentals.mkdir()
+    (fundamentals / "HCLTECH.NS.json").write_text(
+        json.dumps({"sector": "Technology", "industry": "IT Services"}),
+        encoding="utf-8",
+    )
+    (fundamentals / "INDHOTEL.BO.json").write_text(
+        json.dumps({"sector": "Consumer Cyclical", "industry": "Hotels"}),
+        encoding="utf-8",
+    )
+    holdings = {
+        "HCLTECH": {"exchange": "NSE", "isin": "INE860A01027"},
+        "INDHOTEL": {"exchange": "BSE", "isin": "INE053A01029"},
+        "GOLDBEES": {"exchange": "NSE", "isin": "INF204KB17I5"},
+    }
+
+    rows = load_cached_portfolio_metadata(holdings, tmp_path)
+    by_symbol = {row["symbol"]: row for row in rows}
+
+    assert by_symbol["HCLTECH"]["sector"] == "Technology"
+    assert by_symbol["INDHOTEL"]["sector"] == "Consumer Cyclical"
+    assert by_symbol["HCLTECH"]["type"] == "STOCK"
+    assert "GOLDBEES" not in by_symbol
