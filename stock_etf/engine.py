@@ -357,6 +357,8 @@ def run(
         holdings, records, portfolio_universe, etf_constituents=etf_constituents
     )
 
+    portfolio_info["etf_ingestion"] = etf_ingestion
+
     apply_portfolio_context(
         records,
         holdings,
