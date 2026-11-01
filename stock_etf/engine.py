@@ -16,6 +16,7 @@ from .portfolio import (
     build_portfolio_instrument_context,
     load_holdings,
     load_cached_portfolio_metadata,
+    load_cached_etf_constituents,
     portfolio_summary,
 )
 from .profile_store import load_profile
@@ -150,9 +151,11 @@ def run(
         holdings,
         settings.cache_dir,
     )
+    etf_constituents = load_cached_etf_constituents(holdings, settings.cache_dir)
     portfolio_info = portfolio_summary(
         holdings,
         universe=portfolio_metadata,
+        etf_constituents=etf_constituents,
     )
 
     logger.info(
@@ -325,12 +328,15 @@ def run(
 
     # Rebuild portfolio diagnostics with full-universe metadata and the screened
     # records. This keeps every broker holding in the denominator and coverage.
-    portfolio_info = portfolio_summary(holdings, records, portfolio_universe)
+    portfolio_info = portfolio_summary(
+        holdings, records, portfolio_universe, etf_constituents=etf_constituents
+    )
 
     apply_portfolio_context(
         records,
         holdings,
         portfolio_universe,
+        etf_constituents=etf_constituents,
     )
 
     # Deterministic rules are always the hard safety gate. Jev can only
