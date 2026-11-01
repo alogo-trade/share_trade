@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import Settings
+from .etf_disclosures import refresh_etf_disclosure_cache
 from .investor import add_position_context, build_profile
 from .llm import review
 from .market import build_market_data, liquidity_screen
@@ -145,6 +146,29 @@ def run(
         settings.holdings_path
     )
 
+    # Refresh stale ETF constituent disclosures from official AMC sources.
+    # Failures are isolated so the last valid cache remains available.
+    etf_ingestion = {
+        "status": "disabled",
+        "attempted": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "failed": 0,
+        "unsupported": 0,
+        "results": [],
+    }
+    if settings.etf_disclosure_refresh_enabled:
+        try:
+            etf_ingestion = refresh_etf_disclosure_cache(
+                holdings,
+                settings.cache_dir,
+                max_age_days=settings.etf_disclosure_max_age_days,
+            )
+        except Exception as exc:
+            logger.exception("ETF disclosure ingestion failed unexpectedly: %s", exc)
+            etf_ingestion["status"] = "failed"
+            etf_ingestion["error"] = f"{type(exc).__name__}: {exc}"
+
     # Portfolio classification is sourced independently of the active research
     # market. Reuse cached Yahoo fundamentals only; never start NSE discovery here.
     portfolio_metadata = load_cached_portfolio_metadata(
@@ -152,6 +176,7 @@ def run(
         settings.cache_dir,
     )
     etf_constituents = load_cached_etf_constituents(holdings, settings.cache_dir)
+    portfolio_info["etf_ingestion"] = etf_ingestion
     portfolio_info = portfolio_summary(
         holdings,
         universe=portfolio_metadata,
