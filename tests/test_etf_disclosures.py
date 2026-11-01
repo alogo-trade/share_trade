@@ -57,3 +57,34 @@ def test_fresh_cache_is_not_downloaded_again(tmp_path):
     )
     assert result["unchanged"] == 1
     assert result["attempted"] == 0
+
+
+
+def test_extract_rows_accepts_isin_free_table_only_with_verified_scheme_context():
+    frame = pd.DataFrame([
+        ["Motilal Oswal Nasdaq 100 ETF"],
+        ["Name of Security", "% to NAV"],
+        ["Apple Inc", "7.5"],
+        ["Microsoft Corp", "6.0"],
+    ])
+    rows, error = _extract_rows(
+        [frame],
+        ("Motilal Oswal Nasdaq 100 ETF",),
+        scheme_context_verified=True,
+    )
+    assert error is None
+    assert [row["asset_class"] for row in rows] == ["EQUITY", "EQUITY"]
+    assert sum(row["weight_pct"] for row in rows) == 13.5
+
+
+def test_stale_disclosure_is_not_retried_more_than_once_per_day(tmp_path):
+    from datetime import date, timedelta
+    from stock_etf.etf_disclosures import _cache_is_fresh
+
+    cache = tmp_path / "old.json"
+    old_date = (date.today() - timedelta(days=90)).isoformat()
+    cache.write_text(json.dumps({
+        "as_of": old_date,
+        "fetched_at": date.today().isoformat(),
+    }), encoding="utf-8")
+    assert _cache_is_fresh(cache, max_age_days=40)
