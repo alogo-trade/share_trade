@@ -142,18 +142,44 @@ def _download_candidates(
     page_url = SOURCE_PAGES.get(source)
     if not page_url:
         return [], "official_source_not_configured"
-    if page_cache is not None and page_url in page_cache:
-        page_text = page_cache[page_url]
-    else:
+    page_urls = (
+        "https://www.icicipruamc.com/Downloads/MonthlyPortfolioDisclosure.aspx",
+    ) if source == "icici" else ()
+    page_urls = (page_url,) + tuple(url for url in page_urls if url != page_url)
+    page_text = None
+    fetch_errors = []
+    for candidate_page_url in page_urls:
+        if page_cache is not None and candidate_page_url in page_cache:
+            page_url = candidate_page_url
+            page_text = page_cache[candidate_page_url]
+            break
         try:
-            response = session.get(page_url, timeout=TIMEOUT_SECONDS)
+            response = session.get(candidate_page_url, timeout=TIMEOUT_SECONDS)
             response.raise_for_status()
+            page_url = candidate_page_url
             page_text = response.text
             if page_cache is not None:
                 page_cache[page_url] = page_text
+            break
         except requests.RequestException as exc:
-            return [], f"source_page_fetch_failed:{type(exc).__name__}"
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            fetch_errors.append(
+                f"{type(exc).__name__}" + (f":HTTP_{status_code}" if status_code else "")
+            )
+    if page_text is None:
+        return [], "source_page_fetch_failed:" + ",".join(fetch_errors)
 
+    # Motilal publishes the workbook path and its reporting date in page JSON.
+    # Bind that date to the embedded workbook only on the exact scheme page.
+    motilal_date_match = re.search(
+        r"Date\\s*As\\s*On\\s*[:\\-]?\\s*([^<\\r\\n]+)",
+        page_text,
+        flags=re.I,
+    )
+    motilal_page_as_of = (
+        _parse_as_of(motilal_date_match.group(1))
+        if source == "motilal" and motilal_date_match else None
+    )
     parser = _AnchorParser()
     parser.feed(page_text)
     aliases_norm = [_normalise(alias) for alias in aliases]
@@ -162,13 +188,13 @@ def _download_candidates(
     # Some AMC sites embed the downloadable workbook path in page JSON rather
     # than an anchor element (Motilal's scheme pages use portfolioUrl).
     embedded_paths = re.findall(
-        r"""(?:https?://[^\s"'<>]+|/[^\s"'<>]+)\.(?:xlsx?|csv)(?:\?[^\s"'<>]*)?""",
+        r"""(?:https?://[^\\s"'<>]+|/[^\\s"'<>]+)\\.(?:xlsx?|csv)(?:\\?[^\\s"'<>]*)?""",
         page_text,
         flags=re.I,
     )
     link_items.extend((path, path) for path in embedded_paths)
-    page_text = _normalise(page_text)
-    page_confirms_scheme = any(alias and alias in page_text for alias in aliases_norm)
+    page_text_normalised = _normalise(page_text)
+    page_confirms_scheme = any(alias and alias in page_text_normalised for alias in aliases_norm)
     for label, href in link_items:
         absolute = urljoin(page_url, href)
         parsed = urlparse(absolute)
@@ -186,7 +212,10 @@ def _download_candidates(
         alias_match = any(alias and (alias in text or alias in label_norm) for alias in aliases_norm)
         generic_monthly = "monthly portfolio" in text or "month end portfolio" in text
         if alias_match or (source in {"nippon", "mirae"} and generic_monthly) or (source == "motilal" and page_confirms_scheme):
-            candidates.append((absolute, label or absolute))
+            candidate_label = label or absolute
+            if source == "motilal" and page_confirms_scheme and motilal_page_as_of:
+                candidate_label = f"{candidate_label} as on {motilal_page_as_of}"
+            candidates.append((absolute, candidate_label))
     # Reject dated archive files outside the configured freshness window.
     # An undated generic archive cannot establish a reporting period.
     today = date.today()
