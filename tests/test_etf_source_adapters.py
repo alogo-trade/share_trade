@@ -78,3 +78,39 @@ def test_icici_legacy_official_page_is_used_after_current_page_http_error():
     assert error is None
     assert len(candidates) == 1
     assert "ICICI-Nifty-50-ETF-Portfolio.xlsx" in candidates[0][0]
+
+
+
+def test_mirae_monthly_portfolio_adapter_uses_official_portfolio_page():
+    from stock_etf.etf_disclosures import SOURCE_PAGES
+
+    reporting_date = _recent_date()
+    html = f"""
+    <a href="/downloads/MAHKTECH-portfolio.xlsx">
+      Monthly portfolio for Mirae Asset Hang Seng TECH ETF as on {reporting_date}
+    </a>
+    """
+
+    class Response:
+        text = html
+
+        def raise_for_status(self):
+            return None
+
+    class Session:
+        def get(self, url, timeout):
+            assert url == "https://www.miraeassetmf.co.in/downloads/portfolio"
+            return Response()
+
+    assert SOURCE_PAGES["mirae"] == "https://www.miraeassetmf.co.in/downloads/portfolio"
+    candidates, error = _download_candidates(
+        Session(),
+        "mirae",
+        ("Mirae Asset Hang Seng TECH ETF",),
+        page_cache={},
+        max_age_days=40,
+    )
+
+    assert error is None
+    assert len(candidates) == 1
+    assert "MAHKTECH-portfolio.xlsx" in candidates[0][0]
