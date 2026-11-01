@@ -213,15 +213,21 @@ def test_us_only_mode_skips_nse_pipeline_and_writes_compatible_result(tmp_path, 
         output_path=str(output),
         profile_path=str(tmp_path / "profile.json"),
         holdings_path=str(tmp_path / "holdings.json"),
+        cache_dir=str(tmp_path / "cache"),
         us_research_enabled=True,
         market_scope="US_ONLY",
     )
     monkeypatch.setattr(engine, "load_profile", lambda *args: {"age": 40, "capital_inr": 100000.0})
     monkeypatch.setattr(engine, "build_profile", lambda age, capital, horizon: {"age": age, "capital_inr": capital})
-    monkeypatch.setattr(engine, "load_holdings", lambda path: {})
-    monkeypatch.setattr(engine, "portfolio_summary", lambda holdings: {
-        "holdings_count": 0, "invested_value": 0.0, "current_value": 0.0, "pnl": 0.0, "pnl_pct": 0.0
-    })
+    holdings = {
+        "HCLTECH": {"isin": "INE860A01027", "exchange": "NSE", "current_value": 60.0, "invested_value": 50.0},
+        "GOLDBEES": {"isin": "INF204KB17I5", "exchange": "NSE", "current_value": 30.0, "invested_value": 25.0},
+        "SGBDC27VII": {"isin": "IN0020190461", "exchange": "BSE", "current_value": 10.0, "invested_value": 8.0},
+    }
+    monkeypatch.setattr(engine, "load_holdings", lambda path: holdings)
+    monkeypatch.setattr(engine, "load_cached_portfolio_metadata", lambda holdings, cache_dir: [
+        {"symbol": "HCLTECH", "type": "STOCK", "sector": "Technology"}
+    ])
     monkeypatch.setattr(engine, "run_us_research", lambda *args: {
         "status": "partial", "instruments": [{"symbol": "AAPL"}], "news": []
     })
@@ -235,6 +241,14 @@ def test_us_only_mode_skips_nse_pipeline_and_writes_compatible_result(tmp_path, 
     assert result["evaluated_instruments"] == []
     assert result["us_research"]["instruments"] == [{"symbol": "AAPL"}]
     assert result["local_ranking"]["ranked"] == []
+    portfolio = result["portfolio"]["summary"]
+    assert portfolio["holdings_count"] == 3
+    assert portfolio["coverage"]["asset_classified_holdings_count"] == 3
+    assert portfolio["coverage"]["unclassified_holdings_count"] == 0
+    assert portfolio["asset_class_exposure_pct"] == {
+        "STOCK": 60.0, "ETF": 30.0, "SOVEREIGN_GOLD_BOND": 10.0
+    }
+    assert portfolio["sector_exposure_pct"] == {"Technology": 60.0}
     assert output.exists()
 
 
