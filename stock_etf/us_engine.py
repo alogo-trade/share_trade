@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -271,6 +272,7 @@ def run_us_research(
     results, news = [], []
     for item in universe:
         symbol = item["symbol"]
+        metadata_observed_at = datetime.now(timezone.utc).isoformat()
         row = {
             "symbol": symbol,
             "type": item["type"],
@@ -440,6 +442,27 @@ def run_us_research(
         except Exception as exc:
             logger.warning("US data unavailable for %s: %s", symbol, exc)
             row["error"] = str(exc)
+        metadata_fields = {
+            "sector": ("sector", "sector_metadata_source"),
+            "industry": ("industry", "industry_metadata_source"),
+            "market_cap": ("market_cap", "market_cap_metadata_source"),
+            "expense_ratio": ("expense_ratio", "expense_ratio_metadata_source"),
+            "top_holdings": ("top_holdings", "top_holdings_metadata_source"),
+            "sector_weightings": ("sector_weightings", "sector_weightings_metadata_source"),
+            "asset_classes": ("asset_classes", "asset_classes_metadata_source"),
+        }
+        row["metadata_observed_at_utc"] = metadata_observed_at
+        row["metadata_reporting_date"] = None
+        row["metadata_freshness"] = "REPORTING_DATE_UNAVAILABLE"
+        row["metadata_provenance"] = {}
+        for field, (value_key, source_key) in metadata_fields.items():
+            if row.get(value_key) is not None:
+                row["metadata_provenance"][field] = {
+                    "source": row.get(source_key, "UNAVAILABLE"),
+                    "observed_at_utc": metadata_observed_at,
+                    "reporting_date": None,
+                    "freshness": "REPORTING_DATE_UNAVAILABLE",
+                }
         results.append(row)
 
     # Ticker-specific news can be empty even when broad market events are relevant.
@@ -500,7 +523,35 @@ def run_us_research(
             "etf_top_holdings_count": top_holdings_count,
             "etf_sector_weightings_count": sector_weightings_count,
             "etf_asset_classes_count": asset_classes_count,
+            "provenance_reporting_date_available_count": sum(
+                bool(row.get("metadata_reporting_date")) for row in results
+            ),
+            "provenance_observed_count": sum(
+                bool(row.get("metadata_observed_at_utc")) for row in results
+            ),
+            "source_counts": {
+                "YAHOO_FINANCE": sum(
+                    1 for row in results
+                    for key in ("sector_metadata_source", "industry_metadata_source", "expense_ratio_metadata_source")
+                    if row.get(key) == "YAHOO_FINANCE"
+                ),
+                "YAHOO_FINANCE_FUNDS_DATA": sum(
+                    1 for row in results
+                    for key in ("top_holdings_metadata_source", "sector_weightings_metadata_source", "asset_classes_metadata_source")
+                    if row.get(key) == "YAHOO_FINANCE_FUNDS_DATA"
+                ),
+                "CURATED_CATEGORY": sum(
+                    1 for row in results
+                    for key in ("sector_metadata_source", "industry_metadata_source")
+                    if row.get(key) == "CURATED_CATEGORY"
+                ),
+            },
         },
+        "metadata_provenance_note": (
+            "observed_at_utc records retrieval time; Yahoo Finance does not expose "
+            "a consistent reporting date for these metadata fields, so they are not "
+            "represented as current or independently verified."
+        ),
         "news": news,
         "news_count": len(news),
         "news_errors": news_failures[-20:],
