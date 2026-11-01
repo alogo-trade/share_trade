@@ -51,6 +51,7 @@ def _run_us_research_for_scope(settings: Settings, market_scope: str) -> dict:
             settings.us_analysis_limit,
             settings.cache_dir,
             settings.us_candidate_universe_path,
+            settings.us_dynamic_discovery_enabled,
         )
     except Exception as exc:
         logger.exception("US research failed independently of NSE analysis")
