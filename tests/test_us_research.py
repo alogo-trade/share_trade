@@ -229,7 +229,20 @@ def test_us_only_mode_skips_nse_pipeline_and_writes_compatible_result(tmp_path, 
         {"symbol": "HCLTECH", "type": "STOCK", "sector": "Technology"}
     ])
     monkeypatch.setattr(engine, "run_us_research", lambda *args: {
-        "status": "partial", "instruments": [{"symbol": "AAPL"}], "news": []
+        "status": "partial",
+        "instruments": [{"symbol": "AAPL"}],
+        "news": [{"symbol": "US_MACRO", "category": "US_MACRO", "title": "Fed rates update"}],
+        "news_errors": ["Google News timeout"],
+        "ranking": {
+            "status": "complete",
+            "ranked": [{"symbol": "AAPL"}],
+            "shortlist": [{"symbol": "AAPL"}],
+            "actionable": [],
+            "held": [],
+            "rejected": [],
+            "unevaluated": [],
+            "llm_candidates": [],
+        },
     })
     monkeypatch.setattr(engine, "load_universe", lambda *args, **kwargs: (_ for _ in ()).throw(
         AssertionError("NSE universe must not load in US_ONLY mode")
@@ -240,7 +253,13 @@ def test_us_only_mode_skips_nse_pipeline_and_writes_compatible_result(tmp_path, 
     assert result["metadata"]["market_scope"] == "US_ONLY"
     assert result["evaluated_instruments"] == []
     assert result["us_research"]["instruments"] == [{"symbol": "AAPL"}]
-    assert result["local_ranking"]["ranked"] == []
+    assert result["market"]["relevant_news"] == [
+        {"symbol": "US_MACRO", "category": "US_MACRO", "title": "Fed rates update"}
+    ]
+    assert result["market"]["news_found"] == 1
+    assert result["market"]["news_errors"] == ["Google News timeout"]
+    assert result["local_ranking"]["ranked"] == [{"symbol": "AAPL"}]
+    assert result["local_ranking"]["shortlist"] == [{"symbol": "AAPL"}]
     portfolio = result["portfolio"]["summary"]
     assert portfolio["holdings_count"] == 3
     assert portfolio["coverage"]["asset_classified_holdings_count"] == 3
